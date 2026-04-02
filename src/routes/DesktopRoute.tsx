@@ -23,11 +23,8 @@ import {
   Bell,
   Check,
   ChevronDown,
-  Maximize2,
-  Minimize2,
   MoonStar,
   Search,
-  Square,
   SunMedium,
   X,
 } from 'lucide-react'
@@ -93,6 +90,13 @@ import type {
 import { useThemeMode } from '../theme/provider'
 
 const runtimeStorageKey = 'buckyos.prototype.runtime.v1'
+
+type ResizeDirection =
+  | 'left'
+  | 'right'
+  | 'bottom'
+  | 'bottom-left'
+  | 'bottom-right'
 
 /**
  * Reads env(safe-area-inset-*) values for immersive fullscreen on mobile.
@@ -221,6 +225,87 @@ function migrateDeadZone(layout: LayoutState, formFactor: FormFactor) {
 
 function appById(apps: AppDefinition[], appId: string) {
   return apps.find((app) => app.id === appId)
+}
+
+function WindowMinimizeIcon() {
+  return (
+    <svg
+      viewBox="0 0 10 10"
+      aria-hidden="true"
+      className="h-2.5 w-2.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.15"
+      strokeLinecap="square"
+    >
+      <path d="M1.5 5.5h7" />
+    </svg>
+  )
+}
+
+function WindowMaximizeIcon() {
+  return (
+    <svg
+      viewBox="0 0 10 10"
+      aria-hidden="true"
+      className="h-2.5 w-2.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.05"
+      strokeLinecap="square"
+      strokeLinejoin="miter"
+    >
+      <rect x="1.5" y="1.5" width="7" height="7" />
+    </svg>
+  )
+}
+
+function WindowRestoreIcon() {
+  return (
+    <svg
+      viewBox="0 0 10 10"
+      aria-hidden="true"
+      className="h-2.5 w-2.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.05"
+      strokeLinecap="square"
+      strokeLinejoin="miter"
+    >
+      <path d="M3 1.5h5.5V7" />
+      <path d="M1.5 3h5.5v5.5H1.5z" />
+    </svg>
+  )
+}
+
+function WindowChromeButton({
+  ariaLabel,
+  children,
+  className,
+  onClick,
+}: {
+  ariaLabel: string
+  children: ReactNode
+  className?: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      className={clsx(
+        'flex h-8 w-8 items-center justify-center border-0 bg-transparent text-[color:var(--cp-muted)] transition-colors duration-150 hover:bg-[color:color-mix(in_srgb,var(--cp-text)_8%,transparent)] hover:text-[color:var(--cp-text)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--cp-accent)]',
+        className,
+      )}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation()
+        onClick()
+      }}
+    >
+      {children}
+    </button>
+  )
 }
 
 const systemSidebarSystemAppIds = new Set(['settings', 'diagnostics'])
@@ -1497,17 +1582,17 @@ function DesktopTile({
             isCompactAppTile ? 'justify-center gap-1.5 px-1 py-2' : 'justify-center gap-2 px-2',
           )}
         >
-          <span
-            className={clsx(
-              'relative flex items-center justify-center overflow-hidden border shadow-[0_16px_28px_color-mix(in_srgb,var(--cp-shadow)_14%,transparent)]',
-              isCompactAppTile
-                ? 'h-11 w-11 rounded-[15px]'
-                : 'h-14 w-14 rounded-[20px] sm:h-16 sm:w-16',
-            )}
-            style={appIconSurfaceStyle(app.accent)}
-          >
-            <AppIcon iconKey={app.iconKey} />
-          </span>
+            <span
+              className={clsx(
+                'relative flex items-center justify-center overflow-hidden border shadow-[0_16px_28px_color-mix(in_srgb,var(--cp-shadow)_14%,transparent)]',
+                isCompactAppTile
+                  ? 'h-11 w-11 rounded-[15px]'
+                  : 'h-14 w-14 rounded-[20px] sm:h-16 sm:w-16',
+              )}
+              style={appIconSurfaceStyle(app.accent)}
+            >
+              <AppIcon iconKey={app.iconKey} className="text-white" />
+            </span>
           <span
             className={clsx(
               'max-w-full font-display font-semibold text-[color:var(--cp-text)]',
@@ -1702,10 +1787,13 @@ function DesktopWindowLayer({
   } | null>(null)
   const resizeState = useRef<{
     id: string
+    direction: ResizeDirection
     startWidth: number
     startHeight: number
     startX: number
     startY: number
+    startWindowX: number
+    startWindowY: number
   } | null>(null)
   const positionsRef = useRef<Record<string, { x: number; y: number }>>({})
   const sizesRef = useRef<Record<string, { width: number; height: number }>>({})
@@ -1745,11 +1833,16 @@ function DesktopWindowLayer({
     }
 
   const handleResizePointerDown =
-    (windowItem: WindowRecord) => (event: ReactPointerEvent<HTMLButtonElement>) => {
+    (windowItem: WindowRecord, direction: ResizeDirection) =>
+    (event: ReactPointerEvent<HTMLDivElement>) => {
       if (windowItem.state !== 'windowed') {
         return
       }
 
+      const anchored = positionsRef.current[windowItem.id] ?? {
+        x: windowItem.x,
+        y: windowItem.y,
+      }
       const measured = sizesRef.current[windowItem.id] ?? {
         width: windowItem.width,
         height: windowItem.height,
@@ -1757,10 +1850,13 @@ function DesktopWindowLayer({
 
       resizeState.current = {
         id: windowItem.id,
+        direction,
         startWidth: measured.width,
         startHeight: measured.height,
         startX: event.clientX,
         startY: event.clientY,
+        startWindowX: anchored.x,
+        startWindowY: anchored.y,
       }
       onFocus(windowItem.id)
       event.preventDefault()
@@ -1778,26 +1874,72 @@ function DesktopWindowLayer({
       if (activeResize) {
         const minWidth = 420
         const minHeight = 280
-        const maxWidth = Math.max(520, workspaceSize.width - 48)
-        const maxHeight = Math.max(320, workspaceSize.height - topInset - safeArea.bottom - deadZone.bottom - 24)
-        const nextWidth = Math.min(
-          Math.max(
-            minWidth,
-            activeResize.startWidth + (event.clientX - activeResize.startX),
-          ),
-          maxWidth,
-        )
-        const nextHeight = Math.min(
-          Math.max(
-            minHeight,
-            activeResize.startHeight + (event.clientY - activeResize.startY),
-          ),
-          maxHeight,
-        )
+        const deltaX = event.clientX - activeResize.startX
+        const deltaY = event.clientY - activeResize.startY
+        const maxRight = layerRect.width - 24
+        const maxBottom =
+          layerRect.height - safeArea.bottom - deadZone.bottom - 8
+        let nextX = activeResize.startWindowX
+        let nextWidth = activeResize.startWidth
+        let nextHeight = activeResize.startHeight
+
+        if (
+          activeResize.direction === 'right' ||
+          activeResize.direction === 'bottom-right'
+        ) {
+          nextWidth = Math.min(
+            Math.max(minWidth, activeResize.startWidth + deltaX),
+            Math.max(minWidth, maxRight - activeResize.startWindowX),
+          )
+        }
+
+        if (
+          activeResize.direction === 'left' ||
+          activeResize.direction === 'bottom-left'
+        ) {
+          nextX = Math.min(
+            Math.max(24, activeResize.startWindowX + deltaX),
+            activeResize.startWindowX + activeResize.startWidth - minWidth,
+          )
+          nextWidth =
+            activeResize.startWidth + (activeResize.startWindowX - nextX)
+        }
+
+        if (
+          activeResize.direction === 'bottom' ||
+          activeResize.direction === 'bottom-left' ||
+          activeResize.direction === 'bottom-right'
+        ) {
+          nextHeight = Math.min(
+            Math.max(minHeight, activeResize.startHeight + deltaY),
+            Math.max(minHeight, maxBottom - activeResize.startWindowY),
+          )
+        }
+
+        if (
+          activeResize.direction === 'left' ||
+          activeResize.direction === 'bottom-left'
+        ) {
+          setPositions((prev) => {
+            const next = {
+              ...prev,
+              [activeResize.id]: {
+                x: nextX,
+                y: activeResize.startWindowY,
+              },
+            }
+            positionsRef.current = next
+            return next
+          })
+        }
+
         setSizes((prev) => {
           const next = {
             ...prev,
-            [activeResize.id]: { width: nextWidth, height: nextHeight },
+            [activeResize.id]: {
+              width: nextWidth,
+              height: nextHeight,
+            },
           }
           sizesRef.current = next
           return next
@@ -1901,16 +2043,48 @@ function DesktopWindowLayer({
         }
         const maximized = windowItem.state === 'maximized'
         const isFront = windowItem.zIndex === topZIndex
+        const activeTitleBarMix =
+          themeMode === 'light'
+            ? {
+                start: `color-mix(in srgb, ${app.accent} 38%, var(--cp-surface-2))`,
+                end: `color-mix(in srgb, ${app.accent} 22%, var(--cp-surface))`,
+                border: `color-mix(in srgb, ${app.accent} 32%, var(--cp-border))`,
+              }
+            : {
+                start: `color-mix(in srgb, ${app.accent} 20%, var(--cp-surface-2))`,
+                end: `color-mix(in srgb, ${app.accent} 9%, var(--cp-surface))`,
+                border: `color-mix(in srgb, ${app.accent} 18%, var(--cp-border))`,
+              }
+        const titleBarStyle = isFront
+          ? {
+              background: `linear-gradient(180deg, ${activeTitleBarMix.start}, ${activeTitleBarMix.end})`,
+              borderBottomColor: activeTitleBarMix.border,
+            }
+          : {
+              background:
+                'linear-gradient(180deg,color-mix(in_srgb,var(--cp-surface-2)_94%,transparent),color-mix(in_srgb,var(--cp-surface)_92%,transparent))',
+            }
+        const activeTitleTextColor =
+          themeMode === 'light'
+            ? 'color-mix(in srgb, var(--cp-text) 96%, black)'
+            : 'var(--cp-text)'
+        const inactiveTitleTextColor =
+          'color-mix(in srgb, var(--cp-text) 88%, var(--cp-muted))'
+        const titleTextColor = isFront
+          ? activeTitleTextColor
+          : inactiveTitleTextColor
+        const activeChromeButtonClass =
+          themeMode === 'light'
+            ? 'text-[color:color-mix(in_srgb,var(--cp-text)_82%,black)] hover:bg-[color:color-mix(in_srgb,var(--cp-text)_10%,transparent)] hover:text-[color:color-mix(in_srgb,var(--cp-text)_96%,black)]'
+            : 'text-[color:color-mix(in_srgb,var(--cp-text)_82%,var(--cp-muted))]'
 
         return (
           <div
             key={windowItem.id}
             data-testid={`window-${app.id}`}
             className={clsx(
-              'pointer-events-auto shell-window absolute flex flex-col overflow-hidden rounded-[30px] border transition-[transform,box-shadow,border-color,opacity] duration-200 ease-[var(--cp-ease-emphasis)]',
-              isFront
-                ? 'border-[color:color-mix(in_srgb,var(--cp-accent)_28%,var(--cp-border))]'
-                : 'border-[color:var(--cp-border)] opacity-[0.98]',
+              'pointer-events-auto shell-window absolute flex flex-col overflow-hidden rounded-[16px] border border-[color:var(--cp-border)] transition-[transform,box-shadow,opacity] duration-200 ease-[var(--cp-ease-emphasis)]',
+              isFront ? 'opacity-100' : 'opacity-[0.97]',
             )}
             style={{
               zIndex: windowItem.zIndex,
@@ -1929,62 +2103,67 @@ function DesktopWindowLayer({
           >
             <div
               data-testid={`window-drag-${app.id}`}
-              className="flex cursor-move items-center justify-between gap-4 border-b border-[color:var(--cp-border)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--cp-surface-2)_94%,transparent),color-mix(in_srgb,var(--cp-surface)_92%,transparent))] px-4 py-3.5"
+              className="flex h-11 cursor-move items-center justify-between gap-3 border-b px-3 py-1.5 pl-3 pr-1.5"
+              style={titleBarStyle}
               onPointerDown={handlePointerDown(windowItem)}
             >
-              <div className="min-w-0 flex items-center gap-3">
+              <div className="min-w-0 flex items-center gap-2.5">
                 <span
-                  className="flex h-10 w-10 items-center justify-center rounded-[16px] border shadow-[0_10px_18px_color-mix(in_srgb,var(--cp-shadow)_14%,transparent)]"
-                  style={appIconSurfaceStyle(app.accent, 'window')}
+                  className="flex h-5 w-5 shrink-0 items-center justify-center"
+                  style={{ color: titleTextColor }}
                 >
-                  <AppIcon iconKey={app.iconKey} />
+                  <AppIcon
+                    iconKey={app.iconKey}
+                    className={clsx(
+                      'size-[15px] text-inherit',
+                      themeMode === 'light' ? 'stroke-[1.9]' : 'stroke-[1.6]',
+                    )}
+                  />
                 </span>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="truncate font-display text-sm font-semibold text-[color:var(--cp-text)]">
-                      {t(app.labelKey)}
-                    </p>
-                    <TierBadge tier={app.tier} />
-                  </div>
-                  <p className="truncate text-xs text-[color:var(--cp-muted)]">
-                    {t(app.summaryKey)}
-                  </p>
-                </div>
+                <p
+                  className="truncate text-sm font-medium"
+                  style={{ color: titleTextColor }}
+                >
+                  {t(app.labelKey)}
+                </p>
               </div>
-              <div className="flex items-center gap-1">
+              <div
+                className="flex items-center gap-0.5"
+                onPointerDown={(event) => event.stopPropagation()}
+              >
                 {app.manifest.allowMinimize ? (
-                  <IconButton
-                    aria-label={t('common.minimize')}
-                    size="small"
+                  <WindowChromeButton
+                    ariaLabel={t('common.minimize')}
+                    className={isFront ? activeChromeButtonClass : undefined}
                     onClick={() => onMinimize(windowItem.id)}
                   >
-                    <Minimize2 className="size-4" />
-                  </IconButton>
+                    <WindowMinimizeIcon />
+                  </WindowChromeButton>
                 ) : null}
                 {app.manifest.allowMaximize ? (
-                  <IconButton
-                    aria-label={
+                  <WindowChromeButton
+                    ariaLabel={
                       windowItem.state === 'maximized'
                         ? t('common.restoreWindow')
                         : t('common.maximize')
                     }
-                    size="small"
+                    className={isFront ? activeChromeButtonClass : undefined}
                     onClick={() => onMaximize(windowItem.id)}
                   >
                     {windowItem.state === 'maximized' ? (
-                      <Square className="size-4" />
+                      <WindowRestoreIcon />
                     ) : (
-                      <Maximize2 className="size-4" />
+                      <WindowMaximizeIcon />
                     )}
-                  </IconButton>
+                  </WindowChromeButton>
                 ) : null}
-                <IconButton
-                  aria-label={t('common.close')}
-                  size="small"
+                <WindowChromeButton
+                  ariaLabel={t('common.close')}
+                  className={isFront ? activeChromeButtonClass : undefined}
                   onClick={() => onClose(windowItem.id)}
                 >
-                  <X className="size-4" />
-                </IconButton>
+                  <X className="size-[14px] stroke-[2]" />
+                </WindowChromeButton>
               </div>
             </div>
             <div className="desktop-scrollbar min-h-0 flex-1 overflow-y-auto p-5">
@@ -1999,12 +2178,33 @@ function DesktopWindowLayer({
               />
             </div>
             {!maximized ? (
-              <button
-                aria-label={`Resize ${t(app.labelKey)}`}
-                data-testid={`window-resize-${app.id}`}
-                className="absolute bottom-2 right-2 h-6 w-6 cursor-se-resize rounded-full border border-[color:var(--cp-border)] bg-[color:color-mix(in_srgb,var(--cp-surface)_86%,transparent)] text-transparent shadow-[0_10px_18px_color-mix(in_srgb,var(--cp-shadow)_10%,transparent)]"
-                onPointerDown={handleResizePointerDown(windowItem)}
-              />
+              <>
+                <div
+                  data-testid={`window-resize-left-${app.id}`}
+                  className="absolute inset-y-0 left-0 z-20 w-1.5 cursor-ew-resize"
+                  onPointerDown={handleResizePointerDown(windowItem, 'left')}
+                />
+                <div
+                  data-testid={`window-resize-right-${app.id}`}
+                  className="absolute inset-y-0 right-0 z-20 w-1.5 cursor-ew-resize"
+                  onPointerDown={handleResizePointerDown(windowItem, 'right')}
+                />
+                <div
+                  data-testid={`window-resize-bottom-${app.id}`}
+                  className="absolute bottom-0 left-0 right-0 z-20 h-1.5 cursor-ns-resize"
+                  onPointerDown={handleResizePointerDown(windowItem, 'bottom')}
+                />
+                <div
+                  data-testid={`window-resize-bottom-left-${app.id}`}
+                  className="absolute bottom-0 left-0 z-30 h-3.5 w-3.5 cursor-nesw-resize"
+                  onPointerDown={handleResizePointerDown(windowItem, 'bottom-left')}
+                />
+                <div
+                  data-testid={`window-resize-bottom-right-${app.id}`}
+                  className="absolute bottom-0 right-0 z-30 h-3.5 w-3.5 cursor-nwse-resize"
+                  onPointerDown={handleResizePointerDown(windowItem, 'bottom-right')}
+                />
+              </>
             ) : null}
           </div>
         )
@@ -2391,7 +2591,7 @@ function MarketPanel() {
                       background: `linear-gradient(165deg, color-mix(in srgb, ${app.accent} 78%, white), color-mix(in srgb, ${app.accent} 24%, var(--cp-bg)))`,
                     }}
                   >
-                    <AppIcon iconKey={app.iconKey} />
+                    <AppIcon iconKey={app.iconKey} className="text-white" />
                   </span>
                   <div>
                     <p className="font-display text-lg font-semibold">{t(app.labelKey)}</p>
@@ -2523,7 +2723,7 @@ function DemosPanel({
               className="flex h-12 w-12 items-center justify-center rounded-[18px] border shadow-[0_16px_32px_color-mix(in_srgb,var(--cp-shadow)_10%,transparent)]"
               style={appIconSurfaceStyle('var(--cp-accent-soft)', 'window')}
             >
-              <AppIcon iconKey="demos" />
+              <AppIcon iconKey="demos" className="text-white" />
             </span>
             <div>
               <p className="shell-kicker">{t('apps.demos')}</p>
@@ -2808,7 +3008,7 @@ function DemosPanel({
                       className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border shadow-[0_12px_26px_color-mix(in_srgb,var(--cp-shadow)_10%,transparent)]"
                       style={appIconSurfaceStyle('var(--cp-accent-soft)', 'window')}
                     >
-                      <AppIcon iconKey="demos" />
+                      <AppIcon iconKey="demos" className="text-white" />
                     </span>
                     <div className="min-w-0">
                       <p className="font-display text-lg font-semibold text-[color:var(--cp-text)]">

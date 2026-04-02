@@ -28,7 +28,7 @@ test('desktop flow opens settings window and supports locale switch', async ({
 
   await page.goto('/?scenario=normal')
 
-  await expect(page.getByText('BuckyOS')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'BuckyOS' })).toBeVisible()
   await expect(page.getByTestId('desktop-item-widget-clock')).toBeVisible()
   await expect(page.getByTestId('notepad-preview-widget-notepad')).toBeVisible()
   await expect(page.getByTestId('notepad-editor-widget-notepad')).toHaveCount(0)
@@ -81,17 +81,27 @@ test('desktop flow opens settings window and supports locale switch', async ({
   const windowAfterDrag = await page.getByTestId('window-settings').boundingBox()
   expect(windowAfterDrag?.x).not.toBe(windowBeforeDrag?.x)
   const windowBeforeResize = await page.getByTestId('window-settings').boundingBox()
-  await page.getByTestId('window-resize-settings').hover()
+  await page.getByTestId('window-resize-right-settings').hover()
   await page.mouse.down()
   await page.mouse.move(
     (windowBeforeResize?.x ?? 0) + (windowBeforeResize?.width ?? 0) + 120,
-    (windowBeforeResize?.y ?? 0) + (windowBeforeResize?.height ?? 0) + 90,
+    (windowBeforeResize?.y ?? 0) + (windowBeforeResize?.height ?? 0) / 2,
+    { steps: 14 },
+  )
+  await page.mouse.up()
+  const windowAfterWidthResize = await page.getByTestId('window-settings').boundingBox()
+  expect(windowAfterWidthResize?.width).toBeGreaterThan(windowBeforeResize?.width ?? 0)
+  await expect(page.getByTestId('window-resize-bottom-left-settings')).toBeVisible()
+  await page.getByTestId('window-resize-bottom-right-settings').hover()
+  await page.mouse.down()
+  await page.mouse.move(
+    (windowAfterWidthResize?.x ?? 0) + (windowAfterWidthResize?.width ?? 0) + 90,
+    (windowAfterWidthResize?.y ?? 0) + (windowAfterWidthResize?.height ?? 0) + 90,
     { steps: 14 },
   )
   await page.mouse.up()
   const windowAfterResize = await page.getByTestId('window-settings').boundingBox()
-  expect(windowAfterResize?.width).toBeGreaterThan(windowBeforeResize?.width ?? 0)
-  expect(windowAfterResize?.height).toBeGreaterThan(windowBeforeResize?.height ?? 0)
+  expect(windowAfterResize?.height).toBeGreaterThan(windowAfterWidthResize?.height ?? 0)
   await page.getByRole('combobox', { name: 'Language' }).selectOption('zh-CN')
   await page.getByRole('button', { name: 'Save' }).last().click()
   await expect(page.getByText('系统默认项')).toBeVisible()

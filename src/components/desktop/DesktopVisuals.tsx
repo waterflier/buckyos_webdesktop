@@ -51,7 +51,7 @@ export function AppIcon({
   const Icon = iconMap[iconKey as keyof typeof iconMap] ?? LayoutGrid
   return (
     <Icon
-      className={clsx('relative z-10 size-7 text-white sm:size-8', className)}
+      className={clsx('relative z-10 size-7 sm:size-8', className)}
     />
   )
 }
