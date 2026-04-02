@@ -9,31 +9,7 @@ import {
   useMediaQuery,
 } from '@mui/material'
 import clsx from 'clsx'
-import {
-  BellDot,
-  BookOpen,
-  Bug,
-  Clock3,
-  Ellipsis,
-  FolderOpen,
-  HardDriveDownload,
-  House,
-  LayoutGrid,
-  Maximize2,
-  MessageCircle,
-  Minimize2,
-  MonitorSmartphone,
-  PanelLeft,
-  Settings,
-  ShieldAlert,
-  ShieldCheck,
-  ShieldX,
-  Square,
-  StickyNote,
-  Store,
-  Wrench,
-  X,
-} from 'lucide-react'
+import { Maximize2, Minimize2, Square, X } from 'lucide-react'
 import {
   useEffect,
   useMemo,
@@ -53,6 +29,23 @@ import { useSearchParams } from 'react-router-dom'
 import { Pagination } from 'swiper/modules'
 import { Swiper, SwiperSlide } from 'swiper/react'
 import useSWR from 'swr'
+import {
+  AppIcon,
+  TierBadge,
+} from '../components/desktop/DesktopVisuals'
+import {
+  appIconSurfaceStyle,
+  panelToneClasses,
+} from '../components/desktop/DesktopVisualTokens'
+import { StatusBar } from '../components/desktop/StatusBar'
+import { SystemSidebar } from '../components/desktop/SystemSidebar'
+import {
+  mobileStatusBarMode,
+  shellStatusBarHeight,
+  type ConnectionState,
+  type StatusTrayState,
+  useMinuteClock,
+} from '../components/desktop/shell'
 import { useI18n } from '../i18n/provider'
 import { defaultDeadZone, localeLabels } from '../mock/data'
 import { fetchDesktopPayload } from '../mock/provider'
@@ -83,85 +76,6 @@ const gridSpec = {
   mobile: { cols: 4, rows: 6, rowHeight: 96 },
 } as const
 
-const iconMap = {
-  settings: Settings,
-  files: FolderOpen,
-  studio: Wrench,
-  market: Store,
-  diagnostics: Bug,
-  docs: BookOpen,
-  clock: Clock3,
-  notepad: StickyNote,
-}
-
-const panelToneClasses = {
-  accent:
-    'bg-[color:color-mix(in_srgb,var(--cp-accent-soft)_16%,var(--cp-surface))] text-[color:var(--cp-accent)]',
-  success:
-    'bg-[color:color-mix(in_srgb,var(--cp-success)_14%,var(--cp-surface))] text-[color:var(--cp-success)]',
-  warning:
-    'bg-[color:color-mix(in_srgb,var(--cp-warning)_14%,var(--cp-surface))] text-[color:var(--cp-warning)]',
-  neutral:
-    'bg-[color:color-mix(in_srgb,var(--cp-surface-2)_88%,transparent)] text-[color:var(--cp-muted)]',
-} as const
-
-const statusBarHeights = {
-  desktop: 42,
-  mobileHome: 40,
-  mobileCompact: 46,
-  mobileStandard: 58,
-} as const
-
-type ConnectionState = 'online' | 'degraded' | 'offline'
-
-type StatusTrayState = {
-  backupActive: boolean
-  messageCount: number
-  notificationCount: number
-}
-
-function mobileStatusBarMode(app?: AppDefinition) {
-  return app?.manifest.mobileStatusBarMode ?? 'compact'
-}
-
-function shellStatusBarHeight(formFactor: FormFactor, activeApp?: AppDefinition) {
-  if (formFactor === 'desktop') {
-    return statusBarHeights.desktop
-  }
-
-  if (!activeApp) {
-    return statusBarHeights.mobileHome
-  }
-
-  return mobileStatusBarMode(activeApp) === 'standard'
-    ? statusBarHeights.mobileStandard
-    : statusBarHeights.mobileCompact
-}
-
-function connectionTone(state: ConnectionState) {
-  if (state === 'online') {
-    return 'var(--cp-success)'
-  }
-
-  if (state === 'degraded') {
-    return 'var(--cp-warning)'
-  }
-
-  return 'var(--cp-danger)'
-}
-
-function connectionLabel(state: ConnectionState, t: ReturnType<typeof useI18n>['t']) {
-  if (state === 'online') {
-    return t('shell.online')
-  }
-
-  if (state === 'degraded') {
-    return t('shell.connectionDegraded', 'Relay')
-  }
-
-  return t('shell.offline', 'Offline')
-}
-
 function useConnectionState(runtimeContainer: string): ConnectionState {
   const [isNavigatorOnline, setIsNavigatorOnline] = useState(() => navigator.onLine)
 
@@ -188,29 +102,6 @@ function useConnectionState(runtimeContainer: string): ConnectionState {
 function nextSupportedLocale(locale: SupportedLocale) {
   const currentIndex = supportedLocales.indexOf(locale)
   return supportedLocales[(currentIndex + 1) % supportedLocales.length]
-}
-
-function useMinuteClock() {
-  const [now, setNow] = useState(() => new Date())
-
-  useEffect(() => {
-    let intervalId: number | undefined
-    const timeoutId = window.setTimeout(() => {
-      setNow(new Date())
-      intervalId = window.setInterval(() => {
-        setNow(new Date())
-      }, 60_000)
-    }, 60_000 - (Date.now() % 60_000))
-
-    return () => {
-      window.clearTimeout(timeoutId)
-      if (intervalId) {
-        window.clearInterval(intervalId)
-      }
-    }
-  }, [])
-
-  return now
 }
 
 function readJson<T>(key: string) {
@@ -476,6 +367,8 @@ export function DesktopRoute() {
     mouseY: number
   } | null>(null)
   const suppressOpenItemId = useRef<string | null>(null)
+  const draggedOpenBlockItemId = useRef<string | null>(null)
+  const draggedOpenBlockTimeoutId = useRef<number | null>(null)
   const workspaceRef = useRef<HTMLDivElement | null>(null)
   const [workspaceSize, setWorkspaceSize] = useState({ width: 960, height: 720 })
 
@@ -507,6 +400,14 @@ export function DesktopRoute() {
   useEffect(() => {
     window.localStorage.setItem(runtimeStorageKey, runtimeContainer)
   }, [runtimeContainer])
+
+  useEffect(() => {
+    return () => {
+      if (draggedOpenBlockTimeoutId.current) {
+        window.clearTimeout(draggedOpenBlockTimeoutId.current)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     const current = searchParams.get('scenario') ?? 'normal'
@@ -732,6 +633,37 @@ export function DesktopRoute() {
     }, 180)
   }
 
+  const blockOpenAfterDrag = (itemId: string) => {
+    draggedOpenBlockItemId.current = itemId
+    if (draggedOpenBlockTimeoutId.current) {
+      window.clearTimeout(draggedOpenBlockTimeoutId.current)
+    }
+    draggedOpenBlockTimeoutId.current = window.setTimeout(() => {
+      if (draggedOpenBlockItemId.current === itemId) {
+        draggedOpenBlockItemId.current = null
+      }
+      draggedOpenBlockTimeoutId.current = null
+    }, 240)
+  }
+
+  const consumeOpenBlock = (itemId: string) => {
+    if (draggedOpenBlockItemId.current === itemId) {
+      draggedOpenBlockItemId.current = null
+      if (draggedOpenBlockTimeoutId.current) {
+        window.clearTimeout(draggedOpenBlockTimeoutId.current)
+        draggedOpenBlockTimeoutId.current = null
+      }
+      return true
+    }
+
+    if (suppressOpenItemId.current === itemId) {
+      suppressOpenItemId.current = null
+      return true
+    }
+
+    return false
+  }
+
   const handleGridDragStart = (
     _pageId: string,
     oldItem: GridLayoutItem | null,
@@ -742,6 +674,7 @@ export function DesktopRoute() {
       return
     }
 
+    blockOpenAfterDrag(itemId)
     suppressNextOpen(itemId)
   }
 
@@ -752,6 +685,7 @@ export function DesktopRoute() {
   ) => {
     const itemId = newItem?.i ?? oldItem?.i
     if (itemId) {
+      blockOpenAfterDrag(itemId)
       suppressNextOpen(itemId)
     }
 
@@ -1042,8 +976,8 @@ export function DesktopRoute() {
                                   isSelected={selectedItemId === item.id}
                                   onOpen={() =>
                                     item.type === 'app'
-                                      ? suppressOpenItemId.current === item.id
-                                        ? (suppressOpenItemId.current = null)
+                                      ? consumeOpenBlock(item.id)
+                                        ? undefined
                                         : handleOpenApp(item.appId)
                                       : setSelectedItemId(item.id)
                                   }
@@ -1235,22 +1169,6 @@ function MetricCard({
   )
 }
 
-function TierBadge({ tier }: { tier: AppDefinition['tier'] }) {
-  const tone: keyof typeof panelToneClasses =
-    tier === 'system' ? 'accent' : tier === 'sdk' ? 'success' : 'warning'
-
-  return (
-    <span
-      className={clsx(
-        'inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em]',
-        panelToneClasses[tone],
-      )}
-    >
-      {tier}
-    </span>
-  )
-}
-
 function ErrorState({ onRetry }: { onRetry: () => void }) {
   const { t } = useI18n()
   return (
@@ -1287,503 +1205,6 @@ function EmptyState({ onRestore }: { onRestore: () => void }) {
   )
 }
 
-function StatusLogoButton({
-  connectionState,
-  highlightBorder = false,
-  onClick,
-}: {
-  connectionState: ConnectionState
-  highlightBorder?: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-label="BuckyOS"
-      onClick={onClick}
-      className="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-full border bg-[color:color-mix(in_srgb,var(--cp-surface)_88%,transparent)] font-display text-sm font-semibold tracking-[-0.04em] text-[color:var(--cp-text)] shadow-[0_10px_24px_color-mix(in_srgb,var(--cp-shadow)_12%,transparent)] transition-transform duration-150 ease-[var(--cp-ease-emphasis)] active:scale-[0.96]"
-      style={{
-        borderColor: highlightBorder
-          ? `color-mix(in srgb, ${connectionTone(connectionState)} 76%, var(--cp-border))`
-          : 'color-mix(in srgb, var(--cp-border) 82%, transparent)',
-      }}
-    >
-      B
-    </button>
-  )
-}
-
-function StatusTray({
-  compact = false,
-  locale,
-  now,
-  trayState,
-}: {
-  compact?: boolean
-  locale: string
-  now: Date
-  trayState: StatusTrayState
-}) {
-  const timeLabel = new Intl.DateTimeFormat(locale, {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(now)
-
-  return (
-    <div
-      className={clsx(
-        'shell-pill ml-auto shrink-0 px-3 py-1.5 text-xs',
-        compact ? 'gap-2 px-2.5 py-1.5' : '',
-      )}
-    >
-      {trayState.backupActive ? (
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-[color:color-mix(in_srgb,var(--cp-warning)_14%,var(--cp-surface))] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--cp-warning)]">
-          <HardDriveDownload className="size-3.5" />
-          <span className="hidden sm:inline">Backup</span>
-        </span>
-      ) : null}
-      <span className="relative inline-flex items-center justify-center text-[color:var(--cp-text)]">
-        <MessageCircle className="size-4" />
-        {trayState.messageCount > 0 ? (
-          <span className="absolute -right-1.5 -top-1.5 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-[color:var(--cp-accent)] px-1 text-[9px] font-semibold text-white">
-            {trayState.messageCount}
-          </span>
-        ) : null}
-      </span>
-      <span className="relative inline-flex items-center justify-center text-[color:var(--cp-text)]">
-        <BellDot className="size-4" />
-        {trayState.notificationCount > 0 ? (
-          <span className="absolute -right-1.5 -top-1.5 inline-flex min-h-4 min-w-4 items-center justify-center rounded-full bg-[color:var(--cp-danger)] px-1 text-[9px] font-semibold text-white">
-            {trayState.notificationCount}
-          </span>
-        ) : null}
-      </span>
-      <span className="font-medium text-[color:var(--cp-text)]">{timeLabel}</span>
-    </div>
-  )
-}
-
-function SystemSidebar({
-  apps,
-  connectionState,
-  currentAppId,
-  deadZone,
-  onClose,
-  onOpenApp,
-  onReturnDesktop,
-  open,
-  runtimeContainer,
-  windows,
-}: {
-  apps: AppDefinition[]
-  connectionState: ConnectionState
-  currentAppId?: string
-  deadZone: LayoutState['deadZone']
-  onClose: () => void
-  onOpenApp: (appId: string) => void
-  onReturnDesktop: () => void
-  open: boolean
-  runtimeContainer: string
-  windows: WindowRecord[]
-}) {
-  const { t } = useI18n()
-  const runningAppIds = new Set(
-    windows
-      .filter((windowItem) => windowItem.state !== 'minimized')
-      .map((windowItem) => windowItem.appId),
-  )
-  const launcherApps = apps.filter(
-    (app) => app.id !== 'settings' && app.id !== 'diagnostics',
-  )
-  const connectionIcon =
-    connectionState === 'online'
-      ? ShieldCheck
-      : connectionState === 'degraded'
-        ? ShieldAlert
-        : ShieldX
-  const ConnectionIcon = connectionIcon
-
-  return (
-    <div
-      className={clsx(
-        'absolute inset-0 z-[60] transition-opacity duration-200 ease-[var(--cp-ease-emphasis)]',
-        open ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0',
-      )}
-      aria-hidden={!open}
-    >
-      <button
-        type="button"
-        aria-label={t('common.cancel')}
-        onClick={onClose}
-        className="absolute inset-0 bg-[color:color-mix(in_srgb,var(--cp-shadow)_32%,transparent)] backdrop-blur-[2px]"
-      />
-      <aside
-        className={clsx(
-          'absolute inset-y-0 left-0 w-[min(86vw,340px)] border-r border-[color:color-mix(in_srgb,var(--cp-border)_92%,transparent)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--cp-surface)_96%,transparent),color-mix(in_srgb,var(--cp-surface-2)_94%,transparent))] shadow-[0_24px_80px_color-mix(in_srgb,var(--cp-shadow)_26%,transparent)] backdrop-blur-2xl transition-transform duration-250 ease-[var(--cp-ease-emphasis)]',
-          open ? 'translate-x-0' : '-translate-x-full',
-        )}
-      >
-        <div
-          className="desktop-scrollbar flex h-full flex-col gap-5 overflow-y-auto px-4 pb-5 pt-4 sm:px-5"
-          style={{
-            paddingTop: deadZone.top + 14,
-            paddingBottom: deadZone.bottom + 18,
-          }}
-        >
-          <div className="flex items-center justify-between gap-3">
-            <p className="shell-kicker">{t('shell.systemPanel', 'System Panel')}</p>
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:color-mix(in_srgb,var(--cp-border)_88%,transparent)] bg-[color:color-mix(in_srgb,var(--cp-surface)_80%,transparent)] text-[color:var(--cp-muted)]"
-            >
-              <PanelLeft className="size-4" />
-            </button>
-          </div>
-
-          <section className="shell-panel px-4 py-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-[linear-gradient(155deg,color-mix(in_srgb,var(--cp-accent)_78%,white),color-mix(in_srgb,var(--cp-accent)_28%,var(--cp-surface)))] font-display text-lg font-semibold text-white shadow-[0_16px_28px_color-mix(in_srgb,var(--cp-shadow)_16%,transparent)]">
-                B
-              </div>
-              <div className="min-w-0">
-                <p className="truncate font-display text-lg font-semibold text-[color:var(--cp-text)]">
-                  bucky@local
-                </p>
-                <p className="truncate text-sm text-[color:var(--cp-muted)]">
-                  {t(`runtime.${runtimeContainer}`, runtimeContainer)}
-                </p>
-              </div>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <span className="shell-pill px-3 py-1.5 text-[11px]">
-                <ConnectionIcon className="size-3.5" />
-                {connectionLabel(connectionState, t)}
-              </span>
-              <span className="shell-pill px-3 py-1.5 text-[11px]">
-                <MonitorSmartphone className="size-3.5" />
-                BuckyOS Shell
-              </span>
-            </div>
-          </section>
-
-          <button
-            type="button"
-            onClick={onReturnDesktop}
-            className="inline-flex items-center justify-between rounded-[24px] border border-[color:color-mix(in_srgb,var(--cp-border)_88%,transparent)] bg-[color:color-mix(in_srgb,var(--cp-surface)_84%,transparent)] px-4 py-3 text-left text-sm font-medium text-[color:var(--cp-text)] transition-transform duration-150 ease-[var(--cp-ease-emphasis)] active:scale-[0.99]"
-          >
-            <span className="inline-flex items-center gap-2">
-              <House className="size-4" />
-              {t('shell.returnDesktop', 'Return to desktop')}
-            </span>
-            <span className="text-[color:var(--cp-muted)]">{runningAppIds.size}</span>
-          </button>
-
-          <div className="h-px bg-[color:color-mix(in_srgb,var(--cp-border)_78%,transparent)]" />
-
-          <section className="space-y-2">
-            <p className="shell-kicker">{t('shell.switchApps', 'Switch apps')}</p>
-            {launcherApps.map((app) => {
-              const isRunning = runningAppIds.has(app.id)
-              const isCurrent = currentAppId === app.id
-
-              return (
-                <button
-                  key={app.id}
-                  type="button"
-                  onClick={() => onOpenApp(app.id)}
-                  className={clsx(
-                    'flex w-full items-center justify-between rounded-[24px] border px-4 py-3 text-left transition-[transform,border-color,background-color] duration-150 ease-[var(--cp-ease-emphasis)] active:scale-[0.99]',
-                    isCurrent
-                      ? 'border-[color:color-mix(in_srgb,var(--cp-accent)_42%,transparent)] bg-[color:color-mix(in_srgb,var(--cp-accent-soft)_12%,var(--cp-surface))]'
-                      : 'border-[color:color-mix(in_srgb,var(--cp-border)_88%,transparent)] bg-[color:color-mix(in_srgb,var(--cp-surface)_82%,transparent)]',
-                  )}
-                >
-                  <span className="flex min-w-0 items-center gap-3">
-                    <span
-                      className="flex h-10 w-10 items-center justify-center rounded-[16px] border"
-                      style={appIconSurfaceStyle(app.accent, 'window')}
-                    >
-                      <AppIcon iconKey={app.iconKey} />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block truncate font-medium text-[color:var(--cp-text)]">
-                        {t(app.labelKey)}
-                      </span>
-                      <span className="block truncate text-xs text-[color:var(--cp-muted)]">
-                        {t(app.summaryKey)}
-                      </span>
-                    </span>
-                  </span>
-                  <span className="flex shrink-0 items-center gap-2">
-                    {isRunning ? (
-                      <span className="rounded-full bg-[color:color-mix(in_srgb,var(--cp-success)_14%,var(--cp-surface))] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[color:var(--cp-success)]">
-                        {t('shell.running', 'Live')}
-                      </span>
-                    ) : null}
-                    <TierBadge tier={app.tier} />
-                  </span>
-                </button>
-              )
-            })}
-          </section>
-
-          <div className="h-px bg-[color:color-mix(in_srgb,var(--cp-border)_78%,transparent)]" />
-
-          <div className="space-y-2">
-            <button
-              type="button"
-              onClick={() => onOpenApp('settings')}
-              className="flex w-full items-center justify-between rounded-[22px] border border-[color:color-mix(in_srgb,var(--cp-border)_88%,transparent)] bg-[color:color-mix(in_srgb,var(--cp-surface)_82%,transparent)] px-4 py-3 text-left text-sm font-medium text-[color:var(--cp-text)]"
-            >
-              <span className="inline-flex items-center gap-2">
-                <Settings className="size-4" />
-                {t('apps.settings')}
-              </span>
-              <span className="text-[color:var(--cp-muted)]">{t('shell.system', 'System')}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => onOpenApp('diagnostics')}
-              className="flex w-full items-center justify-between rounded-[22px] border border-[color:color-mix(in_srgb,var(--cp-border)_88%,transparent)] bg-[color:color-mix(in_srgb,var(--cp-surface)_82%,transparent)] px-4 py-3 text-left text-sm font-medium text-[color:var(--cp-text)]"
-            >
-              <span className="inline-flex items-center gap-2">
-                <Bug className="size-4" />
-                {t('shell.systemInfo', 'System info')}
-              </span>
-              <span className="text-[color:var(--cp-muted)]">{t('apps.diagnostics')}</span>
-            </button>
-          </div>
-        </div>
-      </aside>
-    </div>
-  )
-}
-
-function StatusBar({
-  activeApp,
-  connectionState,
-  deadZone,
-  formFactor,
-  onCycleLocale,
-  onMinimizeWindow,
-  onOpenDiagnostics,
-  onOpenSettings,
-  onOpenSidebar,
-  onToggleTheme,
-  themeMode,
-  trayState,
-}: {
-  activeApp?: AppDefinition
-  connectionState: ConnectionState
-  deadZone: LayoutState['deadZone']
-  formFactor: FormFactor
-  onCycleLocale: () => void
-  onMinimizeWindow?: () => void
-  onOpenDiagnostics: () => void
-  onOpenSettings: () => void
-  onOpenSidebar: () => void
-  onToggleTheme: () => void
-  themeMode: ThemeMode
-  trayState: StatusTrayState
-}) {
-  const { locale, t } = useI18n()
-  const now = useMinuteClock()
-  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
-  const activeMode =
-    formFactor === 'mobile' && activeApp ? mobileStatusBarMode(activeApp) : null
-  const barHeight = shellStatusBarHeight(formFactor, activeApp)
-  const totalHeight = deadZone.top + barHeight
-  const isDesktop = formFactor === 'desktop'
-  const isMobile = !isDesktop
-  const showSurface = isDesktop || activeMode === 'standard'
-  const connectionText = connectionLabel(connectionState, t)
-  const surfaceStyle =
-    activeMode === 'standard' && activeApp
-      ? {
-          backgroundColor: `color-mix(in srgb, ${activeApp.accent} 14%, var(--cp-surface-2))`,
-        }
-      : {
-          background:
-            'linear-gradient(180deg,color-mix(in_srgb,var(--cp-surface)_94%,transparent),color-mix(in_srgb,var(--cp-surface)_72%,transparent))',
-        }
-
-  return (
-    <div
-      aria-label={t('common.statusBar')}
-      className={clsx(
-        'pointer-events-none inset-x-0 top-0 z-50',
-        isMobile ? 'fixed' : 'absolute',
-      )}
-      style={{ height: totalHeight }}
-    >
-      {showSurface ? (
-        <div
-          className="absolute inset-x-0 top-0 backdrop-blur-xl"
-          style={{
-            height: totalHeight,
-            ...surfaceStyle,
-          }}
-        />
-      ) : null}
-      {showSurface ? (
-        <div
-          className="absolute inset-x-0 h-px bg-[color:var(--cp-border)]/80"
-          style={{ top: totalHeight }}
-        />
-      ) : null}
-
-      <div
-        className="relative flex items-center justify-between gap-3 px-3 text-[color:var(--cp-text)] sm:px-6"
-        style={{
-          height: totalHeight,
-          paddingTop: deadZone.top,
-        }}
-      >
-        {activeMode === 'standard' && activeApp ? (
-          <>
-            <div className="flex min-w-0 items-center gap-2">
-              <StatusLogoButton connectionState={connectionState} onClick={onOpenSidebar} />
-              <button
-                type="button"
-                onClick={onToggleTheme}
-                className="pointer-events-auto hidden rounded-full border border-[color:color-mix(in_srgb,var(--cp-border)_88%,transparent)] bg-[color:color-mix(in_srgb,var(--cp-surface)_78%,transparent)] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--cp-muted)] sm:inline-flex"
-              >
-                {t(themeMode === 'light' ? 'common.light' : 'common.dark')}
-              </button>
-              <button
-                type="button"
-                onClick={onCycleLocale}
-                className="pointer-events-auto hidden rounded-full border border-[color:color-mix(in_srgb,var(--cp-border)_88%,transparent)] bg-[color:color-mix(in_srgb,var(--cp-surface)_78%,transparent)] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--cp-muted)] sm:inline-flex"
-              >
-                {locale}
-              </button>
-            </div>
-            <div className="absolute left-1/2 top-1/2 flex min-w-0 max-w-[46vw] -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center text-center">
-              <p className="truncate font-display text-sm font-semibold text-[color:var(--cp-text)]">
-                {t(activeApp.labelKey)}
-              </p>
-              <p className="line-clamp-1 text-xs text-[color:var(--cp-muted)]">
-                {t(activeApp.summaryKey)}
-              </p>
-            </div>
-            <div className="ml-auto flex shrink-0 items-center gap-1">
-              <IconButton
-                aria-label={t('shell.appMenu', 'App menu')}
-                size="small"
-                onClick={(event) => setMenuAnchor(event.currentTarget)}
-                sx={{ pointerEvents: 'auto' }}
-              >
-                <Ellipsis className="size-4" />
-              </IconButton>
-              {onMinimizeWindow ? (
-                <IconButton
-                  aria-label={t('common.minimize')}
-                  size="small"
-                  onClick={onMinimizeWindow}
-                  sx={{ pointerEvents: 'auto' }}
-                >
-                  <Minimize2 className="size-4" />
-                </IconButton>
-              ) : null}
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="flex min-w-0 items-center gap-2.5">
-              <StatusLogoButton
-                connectionState={connectionState}
-                highlightBorder={!isDesktop}
-                onClick={onOpenSidebar}
-              />
-              {activeMode === 'compact' && activeApp ? (
-                <div className="min-w-0">
-                  <p className="truncate font-display text-sm font-semibold text-[color:var(--cp-text)]">
-                    {t(activeApp.labelKey)}
-                  </p>
-                </div>
-              ) : null}
-              {isDesktop ? (
-                <div className="inline-flex min-w-0 items-center gap-2">
-                  <span
-                    className="h-2.5 w-2.5 rounded-full"
-                    style={{ backgroundColor: connectionTone(connectionState) }}
-                  />
-                  <span className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[color:var(--cp-muted)]">
-                    {connectionText}
-                  </span>
-                </div>
-              ) : null}
-            </div>
-            {activeMode === 'compact' && activeApp ? (
-              <div className="ml-auto flex shrink-0 items-center gap-1">
-                <IconButton
-                  aria-label={t('shell.appMenu', 'App menu')}
-                  size="small"
-                  onClick={(event) => setMenuAnchor(event.currentTarget)}
-                  sx={{ pointerEvents: 'auto' }}
-                >
-                  <Ellipsis className="size-4" />
-                </IconButton>
-                {onMinimizeWindow ? (
-                  <IconButton
-                    aria-label={t('common.minimize')}
-                    size="small"
-                    onClick={onMinimizeWindow}
-                    sx={{ pointerEvents: 'auto' }}
-                  >
-                    <Minimize2 className="size-4" />
-                  </IconButton>
-                ) : null}
-              </div>
-            ) : (
-              <StatusTray
-                compact={!isDesktop}
-                locale={locale}
-                now={now}
-                trayState={trayState}
-              />
-            )}
-          </>
-        )}
-      </div>
-
-      <Menu
-        open={Boolean(menuAnchor)}
-        anchorEl={menuAnchor}
-        onClose={() => setMenuAnchor(null)}
-      >
-        <MenuItem
-          onClick={() => {
-            setMenuAnchor(null)
-            onOpenSettings()
-          }}
-        >
-          {t('apps.settings')}
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            setMenuAnchor(null)
-            onOpenDiagnostics()
-          }}
-        >
-          {t('shell.systemInfo', 'System info')}
-        </MenuItem>
-        {onMinimizeWindow ? (
-          <MenuItem
-            onClick={() => {
-              setMenuAnchor(null)
-              onMinimizeWindow()
-            }}
-          >
-            {t('common.minimize')}
-          </MenuItem>
-        ) : null}
-      </Menu>
-    </div>
-  )
-}
-
 function DesktopTile({
   app,
   isDesktop,
@@ -1804,40 +1225,82 @@ function DesktopTile({
   const { t, locale } = useI18n()
   const isCompactAppTile = !isDesktop && item.type === 'app'
   const touchStartRef = useRef<{ x: number; y: number; pointerId: number } | null>(null)
+  const releaseAppPointerRef = useRef<(() => void) | null>(null)
   const now = useMinuteClock()
+
+  useEffect(() => {
+    return () => {
+      releaseAppPointerRef.current?.()
+      releaseAppPointerRef.current = null
+    }
+  }, [])
+
+  const clearAppPointer = () => {
+    touchStartRef.current = null
+    releaseAppPointerRef.current?.()
+    releaseAppPointerRef.current = null
+  }
+
+  const completeAppPointer = (
+    pointerId: number,
+    clientX: number,
+    clientY: number,
+    pointerType: string,
+  ) => {
+    if (isDesktop || pointerType === 'mouse') {
+      return
+    }
+
+    const start = touchStartRef.current
+    clearAppPointer()
+
+    if (!start || start.pointerId !== pointerId) {
+      return
+    }
+
+    const distance = Math.hypot(clientX - start.x, clientY - start.y)
+    if (distance <= 12) {
+      onOpen()
+    }
+  }
 
   const handleAppPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (isDesktop || event.pointerType === 'mouse') {
       return
     }
 
+    clearAppPointer()
     touchStartRef.current = {
       x: event.clientX,
       y: event.clientY,
       pointerId: event.pointerId,
     }
+
+    const handleWindowPointerUp = (pointerEvent: PointerEvent) => {
+      completeAppPointer(
+        pointerEvent.pointerId,
+        pointerEvent.clientX,
+        pointerEvent.clientY,
+        pointerEvent.pointerType,
+      )
+    }
+
+    const handleWindowPointerCancel = (pointerEvent: PointerEvent) => {
+      if (touchStartRef.current?.pointerId === pointerEvent.pointerId) {
+        clearAppPointer()
+      }
+    }
+
+    window.addEventListener('pointerup', handleWindowPointerUp)
+    window.addEventListener('pointercancel', handleWindowPointerCancel)
+    releaseAppPointerRef.current = () => {
+      window.removeEventListener('pointerup', handleWindowPointerUp)
+      window.removeEventListener('pointercancel', handleWindowPointerCancel)
+    }
   }
 
   const handleAppPointerUp = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (isDesktop || event.pointerType === 'mouse') {
-      return
-    }
-
-    const start = touchStartRef.current
-    touchStartRef.current = null
-
-    if (!start || start.pointerId !== event.pointerId) {
-      return
-    }
-
-    const distance = Math.hypot(event.clientX - start.x, event.clientY - start.y)
-    if (distance <= 8) {
-      onOpen()
-    }
-  }
-
-  const clearAppPointer = () => {
-    touchStartRef.current = null
+    completeAppPointer(event.pointerId, event.clientX, event.clientY, event.pointerType)
   }
 
   return (
@@ -1863,7 +1326,6 @@ function DesktopTile({
           onPointerDown={handleAppPointerDown}
           onPointerUp={handleAppPointerUp}
           onPointerCancel={clearAppPointer}
-          onPointerLeave={clearAppPointer}
           data-testid={`desktop-app-${app.id}`}
           title={t(app.labelKey, app.id)}
           className={clsx(
@@ -1928,21 +1390,6 @@ function DesktopTile({
       ) : null}
     </div>
   )
-}
-
-function AppIcon({ iconKey }: { iconKey: string }) {
-  const Icon = iconMap[iconKey as keyof typeof iconMap] ?? LayoutGrid
-  return <Icon className="relative z-10 size-7 text-white sm:size-8" />
-}
-
-function appIconSurfaceStyle(accent: string, tone: 'tile' | 'window' = 'tile') {
-  const leadingMix = tone === 'tile' ? '68%' : '60%'
-  const trailingMix = tone === 'tile' ? '18%' : '14%'
-
-  return {
-    borderColor: `color-mix(in srgb, ${accent} 18%, var(--cp-border))`,
-    background: `linear-gradient(165deg, color-mix(in srgb, ${accent} ${leadingMix}, var(--cp-surface-2)), color-mix(in srgb, ${accent} ${trailingMix}, var(--cp-surface)))`,
-  }
 }
 
 function NotepadWidget({

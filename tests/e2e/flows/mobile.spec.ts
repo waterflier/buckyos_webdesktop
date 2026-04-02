@@ -35,12 +35,32 @@ test('mobile viewport opens in-place app with system title bar', async ({
   expect(afterDrag?.x !== beforeDrag?.x || afterDrag?.y !== beforeDrag?.y).toBeTruthy()
 
   await page.reload()
-  await page.getByRole('button', { name: 'Settings' }).tap()
+  const settingsButton = page.getByRole('button', { name: 'Settings' })
+  const settingsBox = await settingsButton.boundingBox()
+  expect(settingsBox).not.toBeNull()
+
+  const startX = (settingsBox?.x ?? 0) + (settingsBox?.width ?? 0) / 2
+  const startY = (settingsBox?.y ?? 0) + (settingsBox?.height ?? 0) / 2
+
+  await settingsButton.dispatchEvent('pointerdown', {
+    bubbles: true,
+    clientX: startX,
+    clientY: startY,
+    pointerId: 1,
+    pointerType: 'touch',
+  })
+  await page.locator('body').dispatchEvent('pointerup', {
+    bubbles: true,
+    clientX: startX + 7,
+    clientY: startY + 6,
+    pointerId: 1,
+    pointerType: 'touch',
+  })
   await expect(page.getByText('System defaults')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Back', exact: true })).toBeVisible()
-  await expect(page.getByLabel('Status bar').locator('.shell-pill:visible')).toHaveCount(1)
-  await expect(page.getByTestId('status-home-action')).toContainText('BuckyOS')
-  await page.getByTestId('status-home-action').tap()
+  await expect(page.getByRole('button', { name: 'App menu' })).toBeVisible()
+  const minimizeButton = page.getByRole('button', { name: 'Minimize' })
+  await expect(minimizeButton).toBeVisible()
+  await minimizeButton.tap()
   await expect(page.getByText('System defaults')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Settings' })).toBeVisible()
 
