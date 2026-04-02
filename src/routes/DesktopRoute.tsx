@@ -47,7 +47,7 @@ import { Pagination } from 'swiper/modules'
 import { Swiper, SwiperSlide } from 'swiper/react'
 import useSWR from 'swr'
 import { useI18n } from '../i18n/provider'
-import { localeLabels } from '../mock/data'
+import { defaultDeadZone, localeLabels } from '../mock/data'
 import { fetchDesktopPayload } from '../mock/provider'
 import {
   noteInputSchema,
@@ -138,6 +138,35 @@ function writeJson<T>(key: string, value: T) {
 
 function layoutStorageKey(formFactor: FormFactor) {
   return `buckyos.layout.${formFactor}.v1`
+}
+
+function legacyDeadZone(formFactor: FormFactor) {
+  return formFactor === 'desktop'
+    ? { top: 64, bottom: 24, left: 20, right: 20 }
+    : { top: 52, bottom: 20, left: 12, right: 12 }
+}
+
+function matchesDeadZone(
+  target: LayoutState['deadZone'] | undefined,
+  expected: LayoutState['deadZone'],
+) {
+  return (
+    target?.top === expected.top &&
+    target?.bottom === expected.bottom &&
+    target?.left === expected.left &&
+    target?.right === expected.right
+  )
+}
+
+function migrateDeadZone(layout: LayoutState, formFactor: FormFactor) {
+  if (!matchesDeadZone(layout.deadZone, legacyDeadZone(formFactor))) {
+    return layout
+  }
+
+  return {
+    ...layout,
+    deadZone: { ...defaultDeadZone },
+  }
 }
 
 function appById(apps: AppDefinition[], appId: string) {
@@ -401,7 +430,7 @@ export function DesktopRoute() {
     if (scenario === 'normal') {
       const stored = readJson<LayoutState>(layoutStorageKey(formFactor))
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      applyResolvedLayout(stored ?? data.layout)
+      applyResolvedLayout(stored ? migrateDeadZone(stored, formFactor) : data.layout)
       return
     }
     applyResolvedLayout(data.layout)
@@ -1314,13 +1343,7 @@ function DesktopTile({
 
       {item.type === 'widget' && item.widgetType === 'clock' ? (
         <div className="flex h-full flex-col justify-between rounded-[22px] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--cp-surface-3)_100%,transparent),color-mix(in_srgb,var(--cp-surface-2)_96%,transparent))] p-4">
-          <div className="flex items-center justify-between gap-2 text-[color:var(--cp-muted)]">
-            <div className="flex items-center gap-2">
-              <Clock3 className="size-4" />
-              <span className="text-xs uppercase tracking-[0.24em]">
-                {t('widgets.clock')}
-              </span>
-            </div>
+          <div className="flex justify-end">
             <span className="rounded-full bg-[color:color-mix(in_srgb,var(--cp-surface)_70%,transparent)] px-2.5 py-1 text-[11px] font-medium text-[color:var(--cp-muted)]">
               {new Intl.DateTimeFormat(locale, {
                 weekday: 'short',
@@ -1377,12 +1400,15 @@ function NotepadWidget({
   onSave: (itemId: string, content: string) => void
 }) {
   const { t } = useI18n()
+  const [isEditing, setIsEditing] = useState(false)
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const form = useForm<NoteInput>({
     resolver: zodResolver(noteInputSchema),
     defaultValues: {
       content: value || '',
     },
   })
+  const { ref: registerTextareaRef, ...textareaField } = form.register('content')
   const noteValue =
     useWatch({
       control: form.control,
@@ -1390,42 +1416,77 @@ function NotepadWidget({
     }) ?? ''
   const trimmedLength = noteValue.trim().length
   const remaining = 180 - trimmedLength
+  const previewContent = noteValue.trim()
 
   useEffect(() => {
     form.reset({ content: value || '' })
   }, [form, value])
 
+  useEffect(() => {
+    if (!isEditing) {
+      return
+    }
+
+    textareaRef.current?.focus()
+  }, [isEditing])
+
+  if (!isEditing) {
+    return (
+      <button
+        type="button"
+        data-testid={`notepad-preview-${itemId}`}
+        onClick={() => setIsEditing(true)}
+        className="flex h-full w-full flex-col rounded-[22px] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--cp-surface-3)_86%,transparent),color-mix(in_srgb,var(--cp-surface-2)_96%,transparent))] p-4 text-left"
+      >
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <p
+            className={clsx(
+              'text-sm leading-6',
+              previewContent
+                ? 'text-[color:var(--cp-text)]'
+                : 'text-[color:var(--cp-muted)]',
+            )}
+          >
+            {previewContent || t('widgets.notesPlaceholder')}
+          </p>
+        </div>
+      </button>
+    )
+  }
+
   return (
     <form
-      onSubmit={form.handleSubmit((values) => onSave(itemId, values.content))}
+      onSubmit={form.handleSubmit((values) => {
+        if (values.content !== value) {
+          onSave(itemId, values.content)
+        }
+        form.reset({ content: values.content })
+        setIsEditing(false)
+      })}
       className="flex h-full flex-col rounded-[22px] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--cp-surface-3)_86%,transparent),color-mix(in_srgb,var(--cp-surface-2)_96%,transparent))] p-4"
     >
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-[color:var(--cp-muted)]">
-          <StickyNote className="size-4" />
-          <span className="text-xs uppercase tracking-[0.24em]">
-            {t('widgets.notepad')}
-          </span>
-        </div>
-        <span className="rounded-full bg-[color:color-mix(in_srgb,var(--cp-surface)_72%,transparent)] px-2.5 py-1 text-[11px] font-medium text-[color:var(--cp-muted)]">
-          {Math.max(remaining, 0)}/180
-        </span>
-      </div>
       <textarea
-        {...form.register('content')}
+        {...textareaField}
+        ref={(node) => {
+          registerTextareaRef(node)
+          textareaRef.current = node
+        }}
+        data-testid={`notepad-editor-${itemId}`}
         aria-invalid={form.formState.isSubmitted && !form.formState.isValid}
         className="widget-interactive min-h-0 flex-1 resize-none rounded-[18px] border border-[color:var(--cp-border)] bg-[color:color-mix(in_srgb,var(--cp-surface)_96%,transparent)] p-3 text-sm leading-6 text-[color:var(--cp-text)] shadow-[inset_0_1px_0_color-mix(in_srgb,white_35%,transparent)] outline-none placeholder:text-[color:var(--cp-muted)] focus:border-[color:var(--cp-accent)]"
         placeholder={t('widgets.notesPlaceholder')}
       />
       <div className="mt-3 flex items-center justify-between gap-3">
-        <span className="text-xs leading-5 text-[color:var(--cp-muted)]">
-          {t('widgets.notesHint')}
+        <span className="text-[11px] font-medium text-[color:var(--cp-muted)]">
+          {Math.max(remaining, 0)}/180
         </span>
         <Button
           type="submit"
           variant="contained"
           size="small"
-          disabled={!form.formState.isDirty || !form.formState.isValid}
+          data-testid={`notepad-save-${itemId}`}
+          className="widget-interactive"
+          disabled={!form.formState.isValid}
         >
           {t('common.save')}
         </Button>

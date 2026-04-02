@@ -1,11 +1,19 @@
 import type {
   AppDefinition,
   DesktopPayload,
+  DeadZone,
   FormFactor,
   LayoutItem,
   LayoutState,
   MockScenario,
 } from '../models/ui'
+
+export const defaultDeadZone: DeadZone = {
+  top: 0,
+  bottom: 8,
+  left: 5,
+  right: 5,
+}
 
 const appCatalog: AppDefinition[] = [
   {
@@ -288,10 +296,7 @@ function createLayout(formFactor: FormFactor, items: LayoutItem[][]): LayoutStat
   return {
     version: 1,
     formFactor,
-    deadZone:
-      formFactor === 'desktop'
-        ? { top: 64, bottom: 24, left: 20, right: 20 }
-        : { top: 52, bottom: 20, left: 12, right: 12 },
+    deadZone: defaultDeadZone,
     pages: items.map((pageItems, index) => ({
       id: `${formFactor}-page-${index + 1}`,
       items: pageItems,
@@ -313,10 +318,7 @@ export function buildDesktopPayload(
       layout: {
         version: 1,
         formFactor,
-        deadZone:
-          formFactor === 'desktop'
-            ? { top: 64, bottom: 24, left: 20, right: 20 }
-            : { top: 52, bottom: 20, left: 12, right: 12 },
+        deadZone: defaultDeadZone,
         pages: [{ id: `${formFactor}-page-1`, items: [] }],
       },
     }

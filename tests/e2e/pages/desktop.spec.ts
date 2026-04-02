@@ -29,8 +29,10 @@ test('desktop flow opens settings window and supports locale switch', async ({
   await page.goto('/?scenario=normal')
 
   await expect(page.getByText('BuckyOS')).toBeVisible()
-  await expect(page.getByText('Clock')).toBeVisible()
-  await expect(page.getByText('Notepad')).toBeVisible()
+  await expect(page.getByTestId('desktop-item-widget-clock')).toBeVisible()
+  await expect(page.getByTestId('notepad-preview-widget-notepad')).toBeVisible()
+  await expect(page.getByTestId('notepad-editor-widget-notepad')).toHaveCount(0)
+  await expect(page.getByTestId('notepad-save-widget-notepad')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Prototype Lab' })).toHaveCount(0)
   await expect(page.getByTestId('drag-settings')).toHaveCount(0)
 
@@ -44,6 +46,16 @@ test('desktop flow opens settings window and supports locale switch', async ({
   await page.mouse.up()
   const afterDrag = await settingsIcon.boundingBox()
   expect(afterDrag?.x).not.toBe(beforeDrag?.x)
+
+  await page.getByTestId('notepad-preview-widget-notepad').click()
+  await expect(page.getByTestId('notepad-editor-widget-notepad')).toBeVisible()
+  await expect(page.getByTestId('notepad-save-widget-notepad')).toBeVisible()
+  await page.getByTestId('notepad-editor-widget-notepad').fill('Updated desktop note.')
+  await page.getByTestId('notepad-save-widget-notepad').click()
+  await expect(page.getByTestId('notepad-editor-widget-notepad')).toHaveCount(0)
+  await expect(page.getByTestId('notepad-preview-widget-notepad')).toContainText(
+    'Updated desktop note.',
+  )
 
   const notepadWidget = page.getByTestId('desktop-item-widget-notepad')
   const widgetBeforeDrag = await notepadWidget.boundingBox()
