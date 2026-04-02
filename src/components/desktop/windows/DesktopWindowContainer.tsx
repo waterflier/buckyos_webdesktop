@@ -166,7 +166,7 @@ export function DesktopWindowContainer({
     >
       <div
         data-testid={`window-drag-${app.id}`}
-        className="flex h-8 cursor-move items-center justify-between gap-2 border-b px-2 py-0.5 pl-2 pr-1"
+        className="flex h-8 cursor-move items-center justify-between gap-2 px-2 py-0.5 pl-2 pr-1"
         style={titleBarStyle}
         onPointerDown={onDragPointerDown}
       >
