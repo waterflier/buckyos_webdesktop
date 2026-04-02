@@ -6,7 +6,6 @@ import {
   useMediaQuery,
 } from '@mui/material'
 import clsx from 'clsx'
-import { X } from 'lucide-react'
 import {
   useEffect,
   useMemo,
@@ -14,7 +13,6 @@ import {
   useState,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
-  type ReactNode,
 } from 'react'
 import GridLayoutBase, {
   type Layout,
@@ -26,7 +24,7 @@ import { Pagination } from 'swiper/modules'
 import { Swiper, SwiperSlide } from 'swiper/react'
 import useSWR from 'swr'
 import {
-  AppContentRenderer,
+  findDesktopAppById,
   resolveDesktopApps,
 } from '../components/desktop/apps/registry'
 import type { DesktopAppItem } from '../components/desktop/apps/types'
@@ -39,6 +37,12 @@ import {
 import { StatusBar } from '../components/desktop/StatusBar'
 import { SystemSidebar } from '../components/desktop/SystemSidebar'
 import { DesktopWidgetRenderer } from '../components/desktop/widgets/WidgetRenderer'
+import { DesktopWindowLayer } from '../components/desktop/windows/DesktopWindowLayer'
+import { MobileWindowSheet } from '../components/desktop/windows/MobileWindowSheet'
+import {
+  createDesktopWindowLayerDataModel,
+  createWindowRecord,
+} from '../components/desktop/windows/model'
 import {
   mobileStatusBarMode,
   shellStatusBarHeight,
@@ -66,13 +70,6 @@ import type {
 import { useThemeMode } from '../theme/provider'
 
 const runtimeStorageKey = 'buckyos.prototype.runtime.v1'
-
-type ResizeDirection =
-  | 'left'
-  | 'right'
-  | 'bottom'
-  | 'bottom-left'
-  | 'bottom-right'
 
 /**
  * Reads env(safe-area-inset-*) values for immersive fullscreen on mobile.
@@ -197,91 +194,6 @@ function migrateDeadZone(layout: LayoutState, formFactor: FormFactor) {
     ...layout,
     deadZone: { ...defaultDeadZone },
   }
-}
-
-function appById(apps: DesktopAppItem[], appId: string) {
-  return apps.find((app) => app.id === appId)
-}
-
-function WindowMinimizeIcon() {
-  return (
-    <svg
-      viewBox="0 0 10 10"
-      aria-hidden="true"
-      className="h-2.5 w-2.5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.15"
-      strokeLinecap="square"
-    >
-      <path d="M1.5 5.5h7" />
-    </svg>
-  )
-}
-
-function WindowMaximizeIcon() {
-  return (
-    <svg
-      viewBox="0 0 10 10"
-      aria-hidden="true"
-      className="h-2.5 w-2.5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.05"
-      strokeLinecap="square"
-      strokeLinejoin="miter"
-    >
-      <rect x="1.5" y="1.5" width="7" height="7" />
-    </svg>
-  )
-}
-
-function WindowRestoreIcon() {
-  return (
-    <svg
-      viewBox="0 0 10 10"
-      aria-hidden="true"
-      className="h-2.5 w-2.5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.05"
-      strokeLinecap="square"
-      strokeLinejoin="miter"
-    >
-      <path d="M3 1.5h5.5V7" />
-      <path d="M1.5 3h5.5v5.5H1.5z" />
-    </svg>
-  )
-}
-
-function WindowChromeButton({
-  ariaLabel,
-  children,
-  className,
-  onClick,
-}: {
-  ariaLabel: string
-  children: ReactNode
-  className?: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={ariaLabel}
-      className={clsx(
-        'flex h-8 w-8 items-center justify-center border-0 bg-transparent text-[color:var(--cp-muted)] transition-colors duration-150 hover:bg-[color:color-mix(in_srgb,var(--cp-text)_8%,transparent)] hover:text-[color:var(--cp-text)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--cp-accent)]',
-        className,
-      )}
-      onPointerDown={(event) => event.stopPropagation()}
-      onClick={(event) => {
-        event.stopPropagation()
-        onClick()
-      }}
-    >
-      {children}
-    </button>
-  )
 }
 
 const systemSidebarSystemAppIds = new Set(['settings', 'diagnostics'])
@@ -509,24 +421,6 @@ function updatePageFromGrid(
   return normalizePageItems(nextPage, formFactor, prioritizedItemId)
 }
 
-function createWindowRecord(
-  app: AppDefinition,
-  index: number,
-): WindowRecord {
-  return {
-    id: `${app.id}-${Date.now()}`,
-    appId: app.id,
-    state: app.manifest.defaultMode === 'windowed' ? 'windowed' : 'maximized',
-    minimizedOrder: null,
-    titleKey: app.labelKey,
-    x: 48 + (index % 4) * 36,
-    y: 54 + (index % 3) * 32,
-    width: 540,
-    height: 380,
-    zIndex: 10 + index,
-  }
-}
-
 export function DesktopRoute() {
   const { locale, setLocale, t } = useI18n()
   const { themeMode, setThemeMode } = useThemeMode()
@@ -691,7 +585,7 @@ export function DesktopRoute() {
   }
 
   const handleOpenApp = (appId: string) => {
-    const app = appById(apps, appId)
+    const app = findDesktopAppById(apps, appId)
 
     if (!app) {
       return
@@ -735,7 +629,7 @@ export function DesktopRoute() {
   const handleCloseWindow = (windowId: string) => {
     const closing = windows.find((windowItem) => windowItem.id === windowId)
     if (closing) {
-      const app = appById(apps, closing.appId)
+      const app = findDesktopAppById(apps, closing.appId)
       logActivity(
         t('activity.closed', 'Closed {{name}}', {
           name: t(app?.labelKey ?? closing.titleKey),
@@ -763,7 +657,7 @@ export function DesktopRoute() {
       return
     }
 
-    const app = appById(apps, target.appId)
+    const app = findDesktopAppById(apps, target.appId)
     logActivity(
       t('activity.maximized', 'Toggled maximize for {{name}}', {
         name: t(app?.labelKey ?? target.titleKey),
@@ -788,7 +682,7 @@ export function DesktopRoute() {
       return
     }
 
-    const app = appById(apps, target.appId)
+    const app = findDesktopAppById(apps, target.appId)
     logActivity(
       t('activity.minimized', 'Minimized {{name}}', {
         name: t(app?.labelKey ?? target.titleKey),
@@ -1015,18 +909,14 @@ export function DesktopRoute() {
     setSnackbar(t('activity.saved'))
   }
 
-  const visibleWindows = useMemo(
-    () =>
-      [...windows]
-        .filter((windowItem) => windowItem.state !== 'minimized')
-        .sort((a, b) => a.zIndex - b.zIndex),
-    [windows],
+  const windowLayerModel = useMemo(
+    () => createDesktopWindowLayerDataModel(apps, windows),
+    [apps, windows],
   )
-
-  const topMobileWindow = visibleWindows[visibleWindows.length - 1]
+  const topMobileWindow = windowLayerModel.topWindow
   const activeMobileApp =
     formFactor === 'mobile' && topMobileWindow
-      ? appById(apps, topMobileWindow.appId)
+      ? topMobileWindow.app
       : undefined
   const shellBarHeight = shellStatusBarHeight(formFactor, activeMobileApp)
   const desktopWorkspaceTopInset = safeArea.top + resolvedDeadZone.top + shellBarHeight
@@ -1192,7 +1082,11 @@ export function DesktopRoute() {
                             {page.items.map((item) => (
                               <div key={item.id}>
                                 <DesktopTile
-                                  app={item.type === 'app' ? appById(apps, item.appId) : undefined}
+                                  app={
+                                    item.type === 'app'
+                                      ? findDesktopAppById(apps, item.appId)
+                                      : undefined
+                                  }
                                   isDesktop={!isMobile}
                                   item={item}
                                   isSelected={selectedItemId === item.id}
@@ -1226,8 +1120,10 @@ export function DesktopRoute() {
 
               {!isMobile && (
                 <DesktopWindowLayer
-                  apps={apps}
+                  activityLog={activityLog}
                   deadZone={resolvedDeadZone}
+                  layoutState={layoutState}
+                  locale={locale}
                   onClose={handleCloseWindow}
                   onFocus={focusWindow}
                   onMaximize={toggleMaximizeWindow}
@@ -1236,18 +1132,16 @@ export function DesktopRoute() {
                   runtimeContainer={runtimeContainer}
                   safeArea={safeArea}
                   themeMode={themeMode}
-                  locale={locale}
-                  windows={visibleWindows}
-                  workspaceSize={workspaceSize}
                   topInset={desktopWorkspaceTopInset}
-                  layoutState={layoutState}
-                  activityLog={activityLog}
+                  uiModel={windowLayerModel}
+                  workspaceSize={workspaceSize}
                 />
               )}
 
               {isMobile && topMobileWindow && (
                 <MobileWindowSheet
-                  app={appById(apps, topMobileWindow.appId)}
+                  activityLog={activityLog}
+                  app={topMobileWindow.app}
                   deadZone={resolvedDeadZone}
                   safeAreaBottom={safeArea.bottom}
                   layoutState={layoutState}
@@ -1256,7 +1150,6 @@ export function DesktopRoute() {
                   runtimeContainer={runtimeContainer}
                   themeMode={themeMode}
                   topInset={mobileSheetTopInset}
-                  activityLog={activityLog}
                 />
               )}
             </>
@@ -1533,528 +1426,6 @@ function DesktopTile({
       {item.type === 'widget' ? (
         <DesktopWidgetRenderer item={item} onSaveNote={onSaveNote} />
       ) : null}
-    </div>
-  )
-}
-
-function DesktopWindowLayer({
-  apps,
-  activityLog,
-  deadZone,
-  layoutState,
-  locale,
-  onClose,
-  onFocus,
-  onMaximize,
-  onMinimize,
-  onSaveSettings,
-  runtimeContainer,
-  safeArea = { top: 0, bottom: 0, left: 0, right: 0 },
-  themeMode,
-  topInset,
-  windows,
-  workspaceSize,
-}: {
-  apps: DesktopAppItem[]
-  activityLog: string[]
-  deadZone: LayoutState['deadZone']
-  layoutState: LayoutState
-  locale: string
-  onClose: (windowId: string) => void
-  onFocus: (windowId: string) => void
-  onMaximize: (windowId: string) => void
-  onMinimize: (windowId: string) => void
-  onSaveSettings: (values: SystemPreferencesInput) => void
-  runtimeContainer: string
-  safeArea?: { top: number; bottom: number; left: number; right: number }
-  themeMode: ThemeMode
-  topInset: number
-  windows: WindowRecord[]
-  workspaceSize: { width: number; height: number }
-}) {
-  const dragState = useRef<{
-    id: string
-    offsetX: number
-    offsetY: number
-  } | null>(null)
-  const resizeState = useRef<{
-    id: string
-    direction: ResizeDirection
-    startWidth: number
-    startHeight: number
-    startX: number
-    startY: number
-    startWindowX: number
-    startWindowY: number
-  } | null>(null)
-  const positionsRef = useRef<Record<string, { x: number; y: number }>>({})
-  const sizesRef = useRef<Record<string, { width: number; height: number }>>({})
-  const layerRef = useRef<HTMLDivElement | null>(null)
-  const { t } = useI18n()
-  const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({})
-  const [sizes, setSizes] = useState<Record<string, { width: number; height: number }>>({})
-  const topZIndex = windows.reduce(
-    (highest, windowItem) => Math.max(highest, windowItem.zIndex),
-    0,
-  )
-
-  const handlePointerDown =
-    (windowItem: WindowRecord) => (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (windowItem.state !== 'windowed') {
-        onFocus(windowItem.id)
-        return
-      }
-
-      const layerRect = layerRef.current?.getBoundingClientRect()
-      if (!layerRect) {
-        return
-      }
-
-      const anchored = positionsRef.current[windowItem.id] ?? {
-        x: windowItem.x,
-        y: windowItem.y,
-      }
-
-      dragState.current = {
-        id: windowItem.id,
-        offsetX: event.clientX - layerRect.left - anchored.x,
-        offsetY: event.clientY - layerRect.top - anchored.y,
-      }
-      onFocus(windowItem.id)
-      event.preventDefault()
-    }
-
-  const handleResizePointerDown =
-    (windowItem: WindowRecord, direction: ResizeDirection) =>
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      if (windowItem.state !== 'windowed') {
-        return
-      }
-
-      const anchored = positionsRef.current[windowItem.id] ?? {
-        x: windowItem.x,
-        y: windowItem.y,
-      }
-      const measured = sizesRef.current[windowItem.id] ?? {
-        width: windowItem.width,
-        height: windowItem.height,
-      }
-
-      resizeState.current = {
-        id: windowItem.id,
-        direction,
-        startWidth: measured.width,
-        startHeight: measured.height,
-        startX: event.clientX,
-        startY: event.clientY,
-        startWindowX: anchored.x,
-        startWindowY: anchored.y,
-      }
-      onFocus(windowItem.id)
-      event.preventDefault()
-      event.stopPropagation()
-    }
-
-  useEffect(() => {
-    const handleMove = (event: PointerEvent) => {
-      const layerRect = layerRef.current?.getBoundingClientRect()
-      if (!layerRect) {
-        return
-      }
-
-      const activeResize = resizeState.current
-      if (activeResize) {
-        const minWidth = 420
-        const minHeight = 280
-        const deltaX = event.clientX - activeResize.startX
-        const deltaY = event.clientY - activeResize.startY
-        const maxRight = layerRect.width - 24
-        const maxBottom =
-          layerRect.height - safeArea.bottom - deadZone.bottom - 8
-        let nextX = activeResize.startWindowX
-        let nextWidth = activeResize.startWidth
-        let nextHeight = activeResize.startHeight
-
-        if (
-          activeResize.direction === 'right' ||
-          activeResize.direction === 'bottom-right'
-        ) {
-          nextWidth = Math.min(
-            Math.max(minWidth, activeResize.startWidth + deltaX),
-            Math.max(minWidth, maxRight - activeResize.startWindowX),
-          )
-        }
-
-        if (
-          activeResize.direction === 'left' ||
-          activeResize.direction === 'bottom-left'
-        ) {
-          nextX = Math.min(
-            Math.max(24, activeResize.startWindowX + deltaX),
-            activeResize.startWindowX + activeResize.startWidth - minWidth,
-          )
-          nextWidth =
-            activeResize.startWidth + (activeResize.startWindowX - nextX)
-        }
-
-        if (
-          activeResize.direction === 'bottom' ||
-          activeResize.direction === 'bottom-left' ||
-          activeResize.direction === 'bottom-right'
-        ) {
-          nextHeight = Math.min(
-            Math.max(minHeight, activeResize.startHeight + deltaY),
-            Math.max(minHeight, maxBottom - activeResize.startWindowY),
-          )
-        }
-
-        if (
-          activeResize.direction === 'left' ||
-          activeResize.direction === 'bottom-left'
-        ) {
-          setPositions((prev) => {
-            const next = {
-              ...prev,
-              [activeResize.id]: {
-                x: nextX,
-                y: activeResize.startWindowY,
-              },
-            }
-            positionsRef.current = next
-            return next
-          })
-        }
-
-        setSizes((prev) => {
-          const next = {
-            ...prev,
-            [activeResize.id]: {
-              width: nextWidth,
-              height: nextHeight,
-            },
-          }
-          sizesRef.current = next
-          return next
-        })
-        return
-      }
-
-      const activeDrag = dragState.current
-      if (activeDrag) {
-        const draggingWindow = windows.find(
-          (windowItem) => windowItem.id === activeDrag.id,
-        )
-        const measured = draggingWindow
-          ? sizesRef.current[draggingWindow.id] ?? {
-              width: draggingWindow.width,
-              height: draggingWindow.height,
-            }
-          : { width: 540, height: 380 }
-        const maxX = Math.max(24, layerRect.width - measured.width - 24)
-        const maxY = Math.max(
-          topInset + 8,
-          layerRect.height - measured.height - safeArea.bottom - deadZone.bottom - 8,
-        )
-
-        const nextX = Math.min(
-          Math.max(24, event.clientX - layerRect.left - activeDrag.offsetX),
-          maxX,
-        )
-        const nextY = Math.min(
-          Math.max(
-            topInset + 8,
-            event.clientY - layerRect.top - activeDrag.offsetY,
-          ),
-          maxY,
-        )
-        setPositions((prev) => {
-          const next = {
-            ...prev,
-            [activeDrag.id]: { x: nextX, y: nextY },
-          }
-          positionsRef.current = next
-          return next
-        })
-      }
-    }
-
-    const handleUp = () => {
-      dragState.current = null
-      resizeState.current = null
-    }
-
-    window.addEventListener('pointermove', handleMove)
-    window.addEventListener('pointerup', handleUp)
-    window.addEventListener('pointercancel', handleUp)
-
-    return () => {
-      window.removeEventListener('pointermove', handleMove)
-      window.removeEventListener('pointerup', handleUp)
-      window.removeEventListener('pointercancel', handleUp)
-    }
-  }, [deadZone.bottom, onFocus, safeArea.bottom, topInset, windows, workspaceSize.height, workspaceSize.width])
-
-  useEffect(() => {
-    const sync = () => {
-      setPositions((prev) => {
-        const next = { ...prev }
-        windows.forEach((windowItem) => {
-          next[windowItem.id] ??= { x: windowItem.x, y: windowItem.y }
-        })
-        positionsRef.current = next
-        return next
-      })
-      setSizes((prev) => {
-        const next = { ...prev }
-        windows.forEach((windowItem) => {
-          next[windowItem.id] ??= {
-            width: windowItem.width,
-            height: windowItem.height,
-          }
-        })
-        sizesRef.current = next
-        return next
-      })
-    }
-
-    sync()
-  }, [windows])
-
-  return (
-    <div ref={layerRef} className="pointer-events-none absolute inset-0 z-30">
-      {windows.map((windowItem) => {
-        const app = appById(apps, windowItem.appId)
-        if (!app) {
-          return null
-        }
-
-        const anchored = positions[windowItem.id] ?? { x: windowItem.x, y: windowItem.y }
-        const measured = sizes[windowItem.id] ?? {
-          width: windowItem.width,
-          height: windowItem.height,
-        }
-        const maximized = windowItem.state === 'maximized'
-        const isFront = windowItem.zIndex === topZIndex
-        const activeTitleBarMix =
-          themeMode === 'light'
-            ? {
-                start: `color-mix(in srgb, ${app.accent} 38%, var(--cp-surface-2))`,
-                end: `color-mix(in srgb, ${app.accent} 22%, var(--cp-surface))`,
-                border: `color-mix(in srgb, ${app.accent} 32%, var(--cp-border))`,
-              }
-            : {
-                start: `color-mix(in srgb, ${app.accent} 20%, var(--cp-surface-2))`,
-                end: `color-mix(in srgb, ${app.accent} 9%, var(--cp-surface))`,
-                border: `color-mix(in srgb, ${app.accent} 18%, var(--cp-border))`,
-              }
-        const titleBarStyle = isFront
-          ? {
-              background: `linear-gradient(180deg, ${activeTitleBarMix.start}, ${activeTitleBarMix.end})`,
-              borderBottomColor: activeTitleBarMix.border,
-            }
-          : {
-              background:
-                'linear-gradient(180deg,color-mix(in_srgb,var(--cp-surface-2)_94%,transparent),color-mix(in_srgb,var(--cp-surface)_92%,transparent))',
-            }
-        const activeTitleTextColor =
-          themeMode === 'light'
-            ? 'color-mix(in srgb, var(--cp-text) 96%, black)'
-            : 'var(--cp-text)'
-        const inactiveTitleTextColor =
-          'color-mix(in srgb, var(--cp-text) 88%, var(--cp-muted))'
-        const titleTextColor = isFront
-          ? activeTitleTextColor
-          : inactiveTitleTextColor
-        const activeChromeButtonClass =
-          themeMode === 'light'
-            ? 'text-[color:color-mix(in_srgb,var(--cp-text)_82%,black)] hover:bg-[color:color-mix(in_srgb,var(--cp-text)_10%,transparent)] hover:text-[color:color-mix(in_srgb,var(--cp-text)_96%,black)]'
-            : 'text-[color:color-mix(in_srgb,var(--cp-text)_82%,var(--cp-muted))]'
-
-        return (
-          <div
-            key={windowItem.id}
-            data-testid={`window-${app.id}`}
-            className={clsx(
-              'pointer-events-auto shell-window absolute flex flex-col overflow-hidden rounded-[16px] border border-[color:var(--cp-border)] transition-[transform,box-shadow,opacity] duration-200 ease-[var(--cp-ease-emphasis)]',
-              isFront ? 'opacity-100' : 'opacity-[0.97]',
-            )}
-            style={{
-              zIndex: windowItem.zIndex,
-              left: maximized ? safeArea.left + deadZone.left + 12 : anchored.x,
-              top: maximized ? topInset + 12 : anchored.y,
-              width: maximized
-                ? workspaceSize.width - safeArea.left - deadZone.left - safeArea.right - deadZone.right - 24
-                : measured.width,
-              height: maximized
-                ? workspaceSize.height - topInset - safeArea.bottom - deadZone.bottom - 24
-                : measured.height,
-              display: windowItem.state === 'minimized' ? 'none' : 'block',
-              transform: isFront ? 'translateY(0)' : 'translateY(4px)',
-            }}
-            onMouseDown={() => onFocus(windowItem.id)}
-          >
-            <div
-              data-testid={`window-drag-${app.id}`}
-              className="flex h-11 cursor-move items-center justify-between gap-3 border-b px-3 py-1.5 pl-3 pr-1.5"
-              style={titleBarStyle}
-              onPointerDown={handlePointerDown(windowItem)}
-            >
-              <div className="min-w-0 flex items-center gap-2.5">
-                <span
-                  className="flex h-5 w-5 shrink-0 items-center justify-center"
-                  style={{ color: titleTextColor }}
-                >
-                  <AppIcon
-                    iconKey={app.iconKey}
-                    className={clsx(
-                      'size-[15px] text-inherit',
-                      themeMode === 'light' ? 'stroke-[1.9]' : 'stroke-[1.6]',
-                    )}
-                  />
-                </span>
-                <p
-                  className="truncate text-sm font-medium"
-                  style={{ color: titleTextColor }}
-                >
-                  {t(app.labelKey)}
-                </p>
-              </div>
-              <div
-                className="flex items-center gap-0.5"
-                onPointerDown={(event) => event.stopPropagation()}
-              >
-                {app.manifest.allowMinimize ? (
-                  <WindowChromeButton
-                    ariaLabel={t('common.minimize')}
-                    className={isFront ? activeChromeButtonClass : undefined}
-                    onClick={() => onMinimize(windowItem.id)}
-                  >
-                    <WindowMinimizeIcon />
-                  </WindowChromeButton>
-                ) : null}
-                {app.manifest.allowMaximize ? (
-                  <WindowChromeButton
-                    ariaLabel={
-                      windowItem.state === 'maximized'
-                        ? t('common.restoreWindow')
-                        : t('common.maximize')
-                    }
-                    className={isFront ? activeChromeButtonClass : undefined}
-                    onClick={() => onMaximize(windowItem.id)}
-                  >
-                    {windowItem.state === 'maximized' ? (
-                      <WindowRestoreIcon />
-                    ) : (
-                      <WindowMaximizeIcon />
-                    )}
-                  </WindowChromeButton>
-                ) : null}
-                <WindowChromeButton
-                  ariaLabel={t('common.close')}
-                  className={isFront ? activeChromeButtonClass : undefined}
-                  onClick={() => onClose(windowItem.id)}
-                >
-                  <X className="size-[14px] stroke-[2]" />
-                </WindowChromeButton>
-              </div>
-            </div>
-            <div className="desktop-scrollbar min-h-0 flex-1 overflow-y-auto p-5">
-              <AppContentRenderer
-                activityLog={activityLog}
-                app={app}
-                layoutState={layoutState}
-                locale={locale}
-                onSaveSettings={onSaveSettings}
-                runtimeContainer={runtimeContainer}
-                themeMode={themeMode}
-              />
-            </div>
-            {!maximized ? (
-              <>
-                <div
-                  data-testid={`window-resize-left-${app.id}`}
-                  className="absolute inset-y-0 left-0 z-20 w-1.5 cursor-ew-resize"
-                  onPointerDown={handleResizePointerDown(windowItem, 'left')}
-                />
-                <div
-                  data-testid={`window-resize-right-${app.id}`}
-                  className="absolute inset-y-0 right-0 z-20 w-1.5 cursor-ew-resize"
-                  onPointerDown={handleResizePointerDown(windowItem, 'right')}
-                />
-                <div
-                  data-testid={`window-resize-bottom-${app.id}`}
-                  className="absolute bottom-0 left-0 right-0 z-20 h-1.5 cursor-ns-resize"
-                  onPointerDown={handleResizePointerDown(windowItem, 'bottom')}
-                />
-                <div
-                  data-testid={`window-resize-bottom-left-${app.id}`}
-                  className="absolute bottom-0 left-0 z-30 h-3.5 w-3.5 cursor-nesw-resize"
-                  onPointerDown={handleResizePointerDown(windowItem, 'bottom-left')}
-                />
-                <div
-                  data-testid={`window-resize-bottom-right-${app.id}`}
-                  className="absolute bottom-0 right-0 z-30 h-3.5 w-3.5 cursor-nwse-resize"
-                  onPointerDown={handleResizePointerDown(windowItem, 'bottom-right')}
-                />
-              </>
-            ) : null}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function MobileWindowSheet({
-  activityLog,
-  app,
-  deadZone,
-  layoutState,
-  locale,
-  onSaveSettings,
-  runtimeContainer,
-  safeAreaBottom = 0,
-  themeMode,
-  topInset,
-}: {
-  activityLog: string[]
-  app?: DesktopAppItem
-  deadZone: LayoutState['deadZone']
-  layoutState: LayoutState
-  locale: string
-  onSaveSettings: (values: SystemPreferencesInput) => void
-  runtimeContainer: string
-  safeAreaBottom?: number
-  themeMode: ThemeMode
-  topInset: number
-}) {
-  if (!app) {
-    return null
-  }
-
-  return (
-    <div className="absolute inset-0 z-40 overflow-hidden bg-[color:color-mix(in_srgb,var(--cp-bg)_94%,var(--cp-surface))]">
-      <div
-        className="flex h-full min-h-0 flex-col"
-        style={{
-          paddingBottom: safeAreaBottom + deadZone.bottom,
-        }}
-      >
-        <div
-          className="desktop-scrollbar min-h-0 flex-1 overflow-y-auto p-4"
-          style={{ paddingTop: topInset > 0 ? topInset + 14 : 14 }}
-        >
-          <AppContentRenderer
-            activityLog={activityLog}
-            app={app}
-            layoutState={layoutState}
-            locale={locale}
-            onSaveSettings={onSaveSettings}
-            runtimeContainer={runtimeContainer}
-            themeMode={themeMode}
-          />
-        </div>
-      </div>
     </div>
   )
 }
