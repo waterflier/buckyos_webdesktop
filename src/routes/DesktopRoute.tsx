@@ -34,7 +34,7 @@ import {
 import {
   appIconSurfaceStyle,
 } from '../components/desktop/DesktopVisualTokens'
-import { DesktopBackground } from '../components/desktop/DesktopBackground'
+import { useDesktopBackground } from '../components/desktop/DesktopBackgroundProvider'
 import { StatusBar } from '../components/desktop/StatusBar'
 import { SystemSidebar } from '../components/desktop/SystemSidebar'
 import { DesktopWidgetRenderer } from '../components/desktop/widgets/WidgetRenderer'
@@ -431,6 +431,7 @@ function updatePageFromGrid(
 }
 
 export function DesktopRoute() {
+  const { resetBackground, setBackground } = useDesktopBackground()
   const { locale, setLocale, t } = useI18n()
   const { themeMode, setThemeMode } = useThemeMode()
   const isMobile = useMediaQuery('(max-width:768px)')
@@ -1000,14 +1001,24 @@ export function DesktopRoute() {
     activeMobileApp?.id,
   )
 
+  useEffect(() => {
+    setBackground({
+      wallpaper: data?.wallpaper ?? { mode: 'infinite' },
+      pageCount: layoutState?.pages.length ?? data?.layout.pages.length ?? 1,
+      viewportProgress,
+    })
+  }, [
+    data?.layout.pages.length,
+    data?.wallpaper,
+    layoutState?.pages.length,
+    setBackground,
+    viewportProgress,
+  ])
+
+  useEffect(() => resetBackground, [resetBackground])
+
   return (
     <main className="relative isolate min-h-dvh overflow-hidden bg-[color:var(--cp-bg)]">
-      <DesktopBackground
-        wallpaper={data?.wallpaper ?? { mode: 'infinite' }}
-        pageCount={layoutState?.pages.length ?? data?.layout.pages.length ?? 1}
-        viewportProgress={viewportProgress}
-      />
-
       <section className="relative z-10 min-h-dvh overflow-hidden">
         <div className="relative min-h-dvh overflow-hidden" ref={workspaceRef}>
           {!isLoading && !error && layoutState ? (
