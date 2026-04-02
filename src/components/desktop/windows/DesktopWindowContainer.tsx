@@ -77,7 +77,7 @@ function WindowChromeButton({
       type="button"
       aria-label={ariaLabel}
       className={clsx(
-        'flex h-8 w-8 items-center justify-center border-0 bg-transparent text-[color:var(--cp-muted)] transition-colors duration-150 hover:bg-[color:color-mix(in_srgb,var(--cp-text)_8%,transparent)] hover:text-[color:var(--cp-text)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--cp-accent)]',
+        'flex h-6 w-6 items-center justify-center border-0 bg-transparent text-[color:var(--cp-muted)] transition-colors duration-150 hover:bg-[color:color-mix(in_srgb,var(--cp-text)_8%,transparent)] hover:text-[color:var(--cp-text)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[color:var(--cp-accent)]',
         className,
       )}
       onPointerDown={(event) => event.stopPropagation()}
@@ -158,7 +158,7 @@ export function DesktopWindowContainer({
     <div
       data-testid={`window-${app.id}`}
       className={clsx(
-        'pointer-events-auto shell-window absolute flex flex-col overflow-hidden rounded-[16px] border border-[color:var(--cp-border)] transition-[transform,box-shadow,opacity] duration-200 ease-[var(--cp-ease-emphasis)]',
+        'pointer-events-auto shell-window absolute flex flex-col overflow-hidden rounded-[12px] border border-[color:var(--cp-border)] transition-[transform,box-shadow,opacity] duration-200 ease-[var(--cp-ease-emphasis)]',
         isFront ? 'opacity-100' : 'opacity-[0.97]',
       )}
       style={style}
@@ -166,32 +166,32 @@ export function DesktopWindowContainer({
     >
       <div
         data-testid={`window-drag-${app.id}`}
-        className="flex h-11 cursor-move items-center justify-between gap-3 border-b px-3 py-1.5 pl-3 pr-1.5"
+        className="flex h-8 cursor-move items-center justify-between gap-2 border-b px-2 py-0.5 pl-2 pr-1"
         style={titleBarStyle}
         onPointerDown={onDragPointerDown}
       >
-        <div className="min-w-0 flex items-center gap-2.5">
+        <div className="min-w-0 flex items-center gap-2">
           <span
-            className="flex h-5 w-5 shrink-0 items-center justify-center"
+            className="flex size-4 shrink-0 items-center justify-center"
             style={{ color: titleTextColor }}
           >
             <AppIcon
               iconKey={app.iconKey}
               className={clsx(
-                'size-[15px] text-inherit',
+                'size-[12px] text-inherit',
                 themeMode === 'light' ? 'stroke-[1.9]' : 'stroke-[1.6]',
               )}
             />
           </span>
           <p
-            className="truncate text-sm font-medium"
+            className="truncate text-xs font-medium"
             style={{ color: titleTextColor }}
           >
             {t(app.labelKey)}
           </p>
         </div>
         <div
-          className="flex items-center gap-0.5"
+          className="flex items-center gap-px"
           onPointerDown={(event) => event.stopPropagation()}
         >
           {app.manifest.allowMinimize ? (
@@ -221,7 +221,7 @@ export function DesktopWindowContainer({
             className={isFront ? activeChromeButtonClass : undefined}
             onClick={onClose}
           >
-            <X className="size-[14px] stroke-[2]" />
+            <X className="size-[12px] stroke-[2]" />
           </WindowChromeButton>
         </div>
       </div>
