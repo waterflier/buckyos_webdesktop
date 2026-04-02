@@ -1,33 +1,12 @@
-import { zodResolver } from '@hookform/resolvers/zod'
 import {
   Alert,
   Button,
-  Checkbox,
-  Chip,
-  FormControlLabel,
-  IconButton,
-  LinearProgress,
   Menu,
   MenuItem,
-  Radio,
-  RadioGroup,
-  Slider,
-  Switch,
-  Tab,
-  Tabs,
-  TextField,
   useMediaQuery,
 } from '@mui/material'
 import clsx from 'clsx'
-import {
-  Bell,
-  Check,
-  ChevronDown,
-  MoonStar,
-  Search,
-  SunMedium,
-  X,
-} from 'lucide-react'
+import { X } from 'lucide-react'
 import {
   useEffect,
   useMemo,
@@ -42,36 +21,34 @@ import GridLayoutBase, {
   type LayoutItem as GridLayoutItem,
   noCompactor,
 } from 'react-grid-layout'
-import { Controller, useForm, useWatch } from 'react-hook-form'
 import { useSearchParams } from 'react-router-dom'
 import { Pagination } from 'swiper/modules'
 import { Swiper, SwiperSlide } from 'swiper/react'
 import useSWR from 'swr'
 import {
+  AppContentRenderer,
+  resolveDesktopApps,
+} from '../components/desktop/apps/registry'
+import type { DesktopAppItem } from '../components/desktop/apps/types'
+import {
   AppIcon,
-  TierBadge,
 } from '../components/desktop/DesktopVisuals'
 import {
   appIconSurfaceStyle,
-  panelToneClasses,
 } from '../components/desktop/DesktopVisualTokens'
 import { StatusBar } from '../components/desktop/StatusBar'
 import { SystemSidebar } from '../components/desktop/SystemSidebar'
+import { DesktopWidgetRenderer } from '../components/desktop/widgets/WidgetRenderer'
 import {
   mobileStatusBarMode,
   shellStatusBarHeight,
   type ConnectionState,
   type StatusTrayState,
-  useMinuteClock,
 } from '../components/desktop/shell'
 import { useI18n } from '../i18n/provider'
-import { defaultDeadZone, localeLabels } from '../mock/data'
+import { defaultDeadZone } from '../mock/data'
 import { fetchDesktopPayload } from '../mock/provider'
-import {
-  noteInputSchema,
-  supportedLocales,
-  systemPreferencesInputSchema,
-} from '../models/ui'
+import { supportedLocales } from '../models/ui'
 import type {
   AppDefinition,
   DesktopPageState,
@@ -79,7 +56,6 @@ import type {
   LayoutItem,
   LayoutState,
   MockScenario,
-  NoteInput,
   SupportedLocale,
   SystemSidebarAppItem,
   SystemSidebarDataModel,
@@ -223,7 +199,7 @@ function migrateDeadZone(layout: LayoutState, formFactor: FormFactor) {
   }
 }
 
-function appById(apps: AppDefinition[], appId: string) {
+function appById(apps: DesktopAppItem[], appId: string) {
   return apps.find((app) => app.id === appId)
 }
 
@@ -311,13 +287,13 @@ function WindowChromeButton({
 const systemSidebarSystemAppIds = new Set(['settings', 'diagnostics'])
 
 function createSystemSidebarDataModel(
-  apps: AppDefinition[],
+  apps: DesktopAppItem[],
   windows: WindowRecord[],
   currentAppId?: string,
 ): SystemSidebarDataModel {
   const appMap = new Map(apps.map((app) => [app.id, app]))
   const toSidebarApp = (
-    app: AppDefinition | undefined,
+    app: DesktopAppItem | undefined,
   ): SystemSidebarAppItem | null =>
     app
       ? {
@@ -596,7 +572,7 @@ export function DesktopRoute() {
       }),
   )
 
-  const apps = data?.apps ?? []
+  const apps = useMemo(() => resolveDesktopApps(data?.apps ?? []), [data?.apps])
   const connectionState = useConnectionState(runtimeContainer)
   const currentSpec = gridSpec[formFactor]
   const resetViewportState = () => {
@@ -1366,57 +1342,6 @@ function LoadingState() {
   )
 }
 
-function PanelIntro({
-  aside,
-  body,
-  kicker,
-  title,
-}: {
-  aside?: ReactNode
-  body: string
-  kicker?: string
-  title: string
-}) {
-  return (
-    <section className="shell-panel px-5 py-5 sm:px-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="max-w-xl">
-          {kicker ? <p className="shell-kicker">{kicker}</p> : null}
-          <p className="mt-2 font-display text-xl font-semibold sm:text-2xl">{title}</p>
-          <p className="mt-2 text-sm leading-6 text-[color:var(--cp-muted)]">{body}</p>
-        </div>
-        {aside ? <div className="hidden sm:block sm:shrink-0">{aside}</div> : null}
-      </div>
-    </section>
-  )
-}
-
-function MetricCard({
-  label,
-  tone = 'neutral',
-  value,
-}: {
-  label: string
-  tone?: keyof typeof panelToneClasses
-  value: ReactNode
-}) {
-  return (
-    <div className="shell-subtle-panel px-4 py-4">
-      <div
-        className={clsx(
-          'mb-3 inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]',
-          panelToneClasses[tone],
-        )}
-      >
-        {label}
-      </div>
-      <div className="font-display text-2xl font-semibold text-[color:var(--cp-text)]">
-        {value}
-      </div>
-    </div>
-  )
-}
-
 function ErrorState({ onRetry }: { onRetry: () => void }) {
   const { t } = useI18n()
   return (
@@ -1470,11 +1395,10 @@ function DesktopTile({
   onOpenContextMenu: (event: ReactMouseEvent<HTMLDivElement>) => void
   onSaveNote: (itemId: string, content: string) => void
 }) {
-  const { t, locale } = useI18n()
+  const { t } = useI18n()
   const isCompactAppTile = !isDesktop && item.type === 'app'
   const touchStartRef = useRef<{ x: number; y: number; pointerId: number } | null>(null)
   const releaseAppPointerRef = useRef<(() => void) | null>(null)
-  const now = useMinuteClock()
 
   useEffect(() => {
     return () => {
@@ -1606,142 +1530,10 @@ function DesktopTile({
         </button>
       ) : null}
 
-      {item.type === 'widget' && item.widgetType === 'clock' ? (
-        <div className="flex h-full flex-col justify-between rounded-[22px] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--cp-surface-3)_100%,transparent),color-mix(in_srgb,var(--cp-surface-2)_96%,transparent))] p-4">
-          <div className="flex justify-end">
-            <span className="rounded-full bg-[color:color-mix(in_srgb,var(--cp-surface)_70%,transparent)] px-2.5 py-1 text-[11px] font-medium text-[color:var(--cp-muted)]">
-              {new Intl.DateTimeFormat(locale, {
-                weekday: 'short',
-              }).format(now)}
-            </span>
-          </div>
-          <div className="-mt-1">
-            <p className="font-display whitespace-nowrap text-[1.72rem] font-semibold leading-[0.94] tracking-[-0.05em] text-[color:var(--cp-text)] sm:text-[2.8rem] lg:text-5xl">
-              {new Intl.DateTimeFormat(locale, {
-                hour: '2-digit',
-                minute: '2-digit',
-              }).format(now)}
-            </p>
-            <p className="mt-1 text-sm text-[color:var(--cp-muted)]">
-              {new Intl.DateTimeFormat(locale, {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-              }).format(now)}
-            </p>
-          </div>
-        </div>
-      ) : null}
-
-      {item.type === 'widget' && item.widgetType === 'notepad' ? (
-        <NotepadWidget itemId={item.id} value={String(item.config.content ?? '')} onSave={onSaveNote} />
+      {item.type === 'widget' ? (
+        <DesktopWidgetRenderer item={item} onSaveNote={onSaveNote} />
       ) : null}
     </div>
-  )
-}
-
-function NotepadWidget({
-  itemId,
-  value,
-  onSave,
-}: {
-  itemId: string
-  value: string
-  onSave: (itemId: string, content: string) => void
-}) {
-  const { t } = useI18n()
-  const [isEditing, setIsEditing] = useState(false)
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null)
-  const form = useForm<NoteInput>({
-    resolver: zodResolver(noteInputSchema),
-    defaultValues: {
-      content: value || '',
-    },
-  })
-  const { ref: registerTextareaRef, ...textareaField } = form.register('content')
-  const noteValue =
-    useWatch({
-      control: form.control,
-      name: 'content',
-    }) ?? ''
-  const trimmedLength = noteValue.trim().length
-  const remaining = 180 - trimmedLength
-  const previewContent = noteValue.trim()
-
-  useEffect(() => {
-    form.reset({ content: value || '' })
-  }, [form, value])
-
-  useEffect(() => {
-    if (!isEditing) {
-      return
-    }
-
-    textareaRef.current?.focus()
-  }, [isEditing])
-
-  if (!isEditing) {
-    return (
-      <button
-        type="button"
-        data-testid={`notepad-preview-${itemId}`}
-        onClick={() => setIsEditing(true)}
-        className="flex h-full w-full flex-col rounded-[22px] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--cp-surface-3)_86%,transparent),color-mix(in_srgb,var(--cp-surface-2)_96%,transparent))] p-4 text-left"
-      >
-        <div className="min-h-0 flex-1 overflow-hidden">
-          <p
-            className={clsx(
-              'text-sm leading-6',
-              previewContent
-                ? 'text-[color:var(--cp-text)]'
-                : 'text-[color:var(--cp-muted)]',
-            )}
-          >
-            {previewContent || t('widgets.notesPlaceholder')}
-          </p>
-        </div>
-      </button>
-    )
-  }
-
-  return (
-    <form
-      onSubmit={form.handleSubmit((values) => {
-        if (values.content !== value) {
-          onSave(itemId, values.content)
-        }
-        form.reset({ content: values.content })
-        setIsEditing(false)
-      })}
-      className="flex h-full flex-col rounded-[22px] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--cp-surface-3)_86%,transparent),color-mix(in_srgb,var(--cp-surface-2)_96%,transparent))] p-4"
-    >
-      <textarea
-        {...textareaField}
-        ref={(node) => {
-          registerTextareaRef(node)
-          textareaRef.current = node
-        }}
-        data-testid={`notepad-editor-${itemId}`}
-        aria-invalid={form.formState.isSubmitted && !form.formState.isValid}
-        className="widget-interactive min-h-0 flex-1 resize-none rounded-[18px] border border-[color:var(--cp-border)] bg-[color:color-mix(in_srgb,var(--cp-surface)_96%,transparent)] p-3 text-sm leading-6 text-[color:var(--cp-text)] shadow-[inset_0_1px_0_color-mix(in_srgb,white_35%,transparent)] outline-none placeholder:text-[color:var(--cp-muted)] focus:border-[color:var(--cp-accent)]"
-        placeholder={t('widgets.notesPlaceholder')}
-      />
-      <div className="mt-3 flex items-center justify-between gap-3">
-        <span className="text-[11px] font-medium text-[color:var(--cp-muted)]">
-          {Math.max(remaining, 0)}/180
-        </span>
-        <Button
-          type="submit"
-          variant="contained"
-          size="small"
-          data-testid={`notepad-save-${itemId}`}
-          className="widget-interactive"
-          disabled={!form.formState.isValid}
-        >
-          {t('common.save')}
-        </Button>
-      </div>
-    </form>
   )
 }
 
@@ -1763,7 +1555,7 @@ function DesktopWindowLayer({
   windows,
   workspaceSize,
 }: {
-  apps: AppDefinition[]
+  apps: DesktopAppItem[]
   activityLog: string[]
   deadZone: LayoutState['deadZone']
   layoutState: LayoutState
@@ -2167,7 +1959,7 @@ function DesktopWindowLayer({
               </div>
             </div>
             <div className="desktop-scrollbar min-h-0 flex-1 overflow-y-auto p-5">
-              <AppPanelContent
+              <AppContentRenderer
                 activityLog={activityLog}
                 app={app}
                 layoutState={layoutState}
@@ -2226,7 +2018,7 @@ function MobileWindowSheet({
   topInset,
 }: {
   activityLog: string[]
-  app?: AppDefinition
+  app?: DesktopAppItem
   deadZone: LayoutState['deadZone']
   layoutState: LayoutState
   locale: string
@@ -2252,7 +2044,7 @@ function MobileWindowSheet({
           className="desktop-scrollbar min-h-0 flex-1 overflow-y-auto p-4"
           style={{ paddingTop: topInset > 0 ? topInset + 14 : 14 }}
         >
-          <AppPanelContent
+          <AppContentRenderer
             activityLog={activityLog}
             app={app}
             layoutState={layoutState}
@@ -2264,818 +2056,5 @@ function MobileWindowSheet({
         </div>
       </div>
     </div>
-  )
-}
-
-function AppPanelContent({
-  activityLog,
-  app,
-  layoutState,
-  locale,
-  onSaveSettings,
-  runtimeContainer,
-  themeMode,
-}: {
-  activityLog: string[]
-  app: AppDefinition
-  layoutState: LayoutState
-  locale: string
-  onSaveSettings: (values: SystemPreferencesInput) => void
-  runtimeContainer: string
-  themeMode: ThemeMode
-}) {
-  const { t } = useI18n()
-
-  switch (app.id) {
-    case 'settings':
-      return (
-        <SettingsPanel
-          deadZone={layoutState.deadZone}
-          onSave={onSaveSettings}
-          runtimeContainer={runtimeContainer}
-          themeMode={themeMode}
-        />
-      )
-    case 'files':
-      return <FilesPanel layoutState={layoutState} />
-    case 'studio':
-      return <StudioPanel />
-    case 'market':
-      return <MarketPanel />
-    case 'diagnostics':
-      return <DiagnosticsPanel activityLog={activityLog} layoutState={layoutState} locale={locale} />
-    case 'demos':
-      return <DemosPanel locale={locale} themeMode={themeMode} />
-    default:
-      return (
-        <div className="shell-subtle-panel p-4">
-          <p>{t('common.unsupportedPanel')}</p>
-        </div>
-      )
-  }
-}
-
-function SettingsPanel({
-  deadZone,
-  onSave,
-  runtimeContainer,
-  themeMode,
-}: {
-  deadZone: LayoutState['deadZone']
-  onSave: (values: SystemPreferencesInput) => void
-  runtimeContainer: string
-  themeMode: ThemeMode
-}) {
-  const { locale, t } = useI18n()
-  const appearanceSchema = systemPreferencesInputSchema.pick({
-    locale: true,
-    theme: true,
-  })
-  const form = useForm<Pick<SystemPreferencesInput, 'locale' | 'theme'>>({
-    resolver: zodResolver(appearanceSchema),
-    defaultValues: {
-      locale,
-      theme: themeMode,
-    },
-  })
-
-  useEffect(() => {
-    form.reset({
-      locale,
-      theme: themeMode,
-    })
-  }, [form, locale, themeMode])
-
-  const runtimeLabel = t(`runtime.${runtimeContainer}`, runtimeContainer)
-  const themeLabel = t(themeMode === 'light' ? 'common.light' : 'common.dark')
-
-  return (
-    <form
-      onSubmit={form.handleSubmit((values) =>
-        onSave({
-          ...values,
-          runtimeContainer: runtimeContainer as SystemPreferencesInput['runtimeContainer'],
-          deadZoneTop: deadZone.top,
-          deadZoneBottom: deadZone.bottom,
-          deadZoneLeft: deadZone.left,
-          deadZoneRight: deadZone.right,
-        }),
-      )}
-      className="space-y-4"
-    >
-      <PanelIntro
-        kicker="Appearance"
-        title={t('settings.title')}
-        body={t('settings.body')}
-        aside={<span className="shell-pill px-3 py-1.5 text-xs">{runtimeLabel}</span>}
-      />
-
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
-        <section className="shell-subtle-panel p-4 sm:p-5">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Controller
-              control={form.control}
-              name="locale"
-              render={({ field }) => (
-                <TextField {...field} label={t('common.language')} select SelectProps={{ native: true }}>
-                  {Object.entries(localeLabels).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </TextField>
-              )}
-            />
-            <Controller
-              control={form.control}
-              name="theme"
-              render={({ field }) => (
-                <TextField {...field} label={t('common.theme')} select SelectProps={{ native: true }}>
-                  <option value="light">{t('common.light')}</option>
-                  <option value="dark">{t('common.dark')}</option>
-                </TextField>
-              )}
-            />
-          </div>
-
-          <p className="mt-4 text-sm leading-6 text-[color:var(--cp-muted)]">
-            {t('settings.helper')}
-          </p>
-
-          <div className="mt-5 flex justify-end">
-            <Button type="submit" disabled={!form.formState.isDirty}>
-              {t('common.save')}
-            </Button>
-          </div>
-        </section>
-
-        <div className="grid gap-3">
-          <MetricCard label={t('common.theme')} tone="accent" value={themeLabel} />
-          <MetricCard
-            label={t('common.language')}
-            tone="neutral"
-            value={localeLabels[locale as keyof typeof localeLabels] ?? locale}
-          />
-          <MetricCard label={t('common.runtime')} tone="success" value={runtimeLabel} />
-          <div className="shell-subtle-panel px-4 py-4">
-            <p className="shell-kicker">{t('shell.deadZone')}</p>
-            <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-[color:var(--cp-muted)]">
-              <div className="rounded-2xl bg-[color:color-mix(in_srgb,var(--cp-surface)_82%,transparent)] px-3 py-2">
-                {t('settings.deadZoneTop')} <span className="font-semibold text-[color:var(--cp-text)]">{deadZone.top}</span>
-              </div>
-              <div className="rounded-2xl bg-[color:color-mix(in_srgb,var(--cp-surface)_82%,transparent)] px-3 py-2">
-                {t('settings.deadZoneBottom')} <span className="font-semibold text-[color:var(--cp-text)]">{deadZone.bottom}</span>
-              </div>
-              <div className="rounded-2xl bg-[color:color-mix(in_srgb,var(--cp-surface)_82%,transparent)] px-3 py-2">
-                {t('settings.deadZoneLeft')} <span className="font-semibold text-[color:var(--cp-text)]">{deadZone.left}</span>
-              </div>
-              <div className="rounded-2xl bg-[color:color-mix(in_srgb,var(--cp-surface)_82%,transparent)] px-3 py-2">
-                {t('settings.deadZoneRight')} <span className="font-semibold text-[color:var(--cp-text)]">{deadZone.right}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </form>
-  )
-}
-
-function FilesPanel({ layoutState }: { layoutState: LayoutState }) {
-  const { t } = useI18n()
-  const totalItems = layoutState.pages.reduce((sum, page) => sum + page.items.length, 0)
-
-  return (
-    <div className="space-y-4">
-      <PanelIntro
-        kicker="Inventory"
-        title={t('files.title')}
-        body={t('files.scopeBody')}
-      />
-      <div className="grid gap-3 md:grid-cols-[repeat(2,minmax(0,1fr))_minmax(0,1.2fr)]">
-        <MetricCard label={t('files.pages')} tone="accent" value={layoutState.pages.length} />
-        <MetricCard label={t('files.items')} tone="success" value={totalItems} />
-        <div className="shell-subtle-panel px-4 py-4">
-          <p className="shell-kicker">{t('files.scope')}</p>
-          <p className="mt-3 text-sm leading-6 text-[color:var(--cp-muted)]">{t('files.scopeBody')}</p>
-        </div>
-      </div>
-      {layoutState.pages.map((page) => (
-        <section key={page.id} className="shell-subtle-panel p-4 sm:p-5">
-          <div className="flex items-center justify-between gap-3">
-            <p className="font-display text-lg font-semibold">{page.id}</p>
-            <span className="shell-pill px-3 py-1 text-xs">{page.items.length}</span>
-          </div>
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            {page.items.length > 0 ? (
-              page.items.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-[20px] border border-[color:color-mix(in_srgb,var(--cp-border)_84%,transparent)] bg-[color:color-mix(in_srgb,var(--cp-surface)_90%,transparent)] px-3 py-3 text-sm"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="truncate font-medium text-[color:var(--cp-text)]">{item.id}</span>
-                    <span className="rounded-full bg-[color:color-mix(in_srgb,var(--cp-accent-soft)_14%,var(--cp-surface))] px-2 py-0.5 text-[11px] uppercase tracking-[0.16em] text-[color:var(--cp-muted)]">
-                      {item.type}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-xs text-[color:var(--cp-muted)]">
-                    {item.w} × {item.h}
-                  </p>
-                </div>
-              ))
-            ) : (
-              <div className="rounded-[20px] bg-[color:color-mix(in_srgb,var(--cp-surface)_88%,transparent)] px-4 py-4 text-sm text-[color:var(--cp-muted)]">
-                {t('states.emptyBody')}
-              </div>
-            )}
-          </div>
-        </section>
-      ))}
-    </div>
-  )
-}
-
-function StudioPanel() {
-  const { t } = useI18n()
-  return (
-    <div className="space-y-4">
-      <PanelIntro
-        kicker="Manifest"
-        title={t('studio.title')}
-        body={t('studio.body')}
-      />
-      <div className="grid gap-3 md:grid-cols-2">
-        {[
-          'studio.point1',
-          'studio.point2',
-          'studio.point3',
-          'studio.point4',
-        ].map((key, index) => (
-          <div key={key} className="shell-subtle-panel p-4 text-sm leading-6 text-[color:var(--cp-text)]">
-            <div className="mb-3 flex items-center gap-3">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[color:color-mix(in_srgb,var(--cp-accent-soft)_16%,var(--cp-surface))] font-display text-sm font-semibold text-[color:var(--cp-accent)]">
-                {index + 1}
-              </span>
-              <span className="shell-kicker">Rule</span>
-            </div>
-            {t(key)}
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function MarketPanel() {
-  const { t } = useI18n()
-  const cards = [
-    {
-      id: 'settings',
-      labelKey: 'apps.settings',
-      bodyKey: 'market.card.settings.body',
-      iconKey: 'settings',
-      accent: 'var(--cp-accent)',
-      tier: 'system' as const,
-    },
-    {
-      id: 'files',
-      labelKey: 'apps.files',
-      bodyKey: 'market.card.files.body',
-      iconKey: 'files',
-      accent: 'var(--cp-success)',
-      tier: 'sdk' as const,
-    },
-    {
-      id: 'studio',
-      labelKey: 'apps.studio',
-      bodyKey: 'market.card.studio.body',
-      iconKey: 'studio',
-      accent: 'var(--cp-warning)',
-      tier: 'sdk' as const,
-    },
-    {
-      id: 'docs',
-      labelKey: 'apps.docs',
-      bodyKey: 'market.card.docs.body',
-      iconKey: 'docs',
-      accent: 'var(--cp-accent-soft)',
-      tier: 'external' as const,
-    },
-    {
-      id: 'demos',
-      labelKey: 'apps.demos',
-      bodyKey: 'market.card.demos.body',
-      iconKey: 'demos',
-      accent: 'var(--cp-accent-soft)',
-      tier: 'sdk' as const,
-    },
-  ]
-
-  return (
-    <div className="space-y-4">
-      <PanelIntro
-        kicker="Launcher"
-        title={t('market.title')}
-        body={t('market.body')}
-      />
-      <div className="grid gap-3 sm:grid-cols-2">
-        {cards.map((app) => {
-          return (
-            <div key={app.id} className="shell-subtle-panel p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <span
-                    className="flex h-12 w-12 items-center justify-center rounded-[18px] border shadow-[0_14px_28px_color-mix(in_srgb,var(--cp-shadow)_12%,transparent)]"
-                    style={{
-                      borderColor: `color-mix(in srgb, ${app.accent} 26%, white)`,
-                      background: `linear-gradient(165deg, color-mix(in srgb, ${app.accent} 78%, white), color-mix(in srgb, ${app.accent} 24%, var(--cp-bg)))`,
-                    }}
-                  >
-                    <AppIcon iconKey={app.iconKey} className="text-white" />
-                  </span>
-                  <div>
-                    <p className="font-display text-lg font-semibold">{t(app.labelKey)}</p>
-                    <p className="mt-1 text-sm leading-6 text-[color:var(--cp-muted)]">
-                      {t(app.bodyKey)}
-                    </p>
-                  </div>
-                </div>
-                <TierBadge tier={app.tier} />
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-function DiagnosticsPanel({
-  activityLog,
-  layoutState,
-  locale,
-}: {
-  activityLog: string[]
-  layoutState: LayoutState
-  locale: string
-}) {
-  const { t } = useI18n()
-  const totalItems = layoutState.pages.reduce((sum, page) => sum + page.items.length, 0)
-
-  return (
-    <div className="space-y-4">
-      <PanelIntro
-        kicker="Telemetry"
-        title={t('diagnostics.title')}
-        body={t('diagnostics.body')}
-      />
-      <div className="grid gap-3 md:grid-cols-3">
-        <MetricCard label={t('diagnostics.locale')} tone="accent" value={locale} />
-        <MetricCard label={t('files.pages')} tone="neutral" value={layoutState.pages.length} />
-        <MetricCard label={t('files.items')} tone="success" value={totalItems} />
-      </div>
-      <div className="shell-subtle-panel p-4">
-        <p className="shell-kicker">{t('shell.activity')}</p>
-        <div className="mt-4 space-y-2">
-          {activityLog.length > 0 ? (
-            activityLog.map((entry) => (
-              <div
-                key={entry}
-                className="flex items-start gap-3 rounded-[20px] bg-[color:color-mix(in_srgb,var(--cp-surface)_88%,transparent)] px-3 py-3 text-sm"
-              >
-                <span className="mt-1 h-2.5 w-2.5 rounded-full bg-[color:var(--cp-success)]" />
-                <span>{entry}</span>
-              </div>
-            ))
-          ) : (
-            <div className="rounded-[20px] bg-[color:color-mix(in_srgb,var(--cp-surface)_88%,transparent)] px-4 py-4 text-sm text-[color:var(--cp-muted)]">
-              {t('shell.noRunningApps')}
-            </div>
-          )}
-        </div>
-      </div>
-      <pre className="shell-scrollbar overflow-x-auto rounded-[24px] bg-[color:var(--cp-bg-strong)] p-4 text-xs text-[color:var(--cp-text)]">
-        {JSON.stringify(layoutState, null, 2)}
-      </pre>
-    </div>
-  )
-}
-
-function DemosPanel({
-  locale,
-  themeMode,
-}: {
-  locale: string
-  themeMode: ThemeMode
-}) {
-  const { t } = useI18n()
-  const isCompact = useMediaQuery('(max-width: 900px)')
-  const [query, setQuery] = useState('Window controls')
-  const [owner, setOwner] = useState('Prototype team')
-  const [density, setDensity] = useState<'compact' | 'balanced' | 'comfortable'>('balanced')
-  const [releaseState, setReleaseState] = useState<'draft' | 'review' | 'ready'>('review')
-  const [notes, setNotes] = useState(
-    'Validate spacing rhythm, focus rings, disabled states, and mobile fit.',
-  )
-  const [notifications, setNotifications] = useState(true)
-  const [offlineCache, setOfflineCache] = useState(false)
-  const [autoArrange, setAutoArrange] = useState(true)
-  const [launchMode, setLaunchMode] = useState<'windowed' | 'maximized' | 'focused'>('windowed')
-  const [scale, setScale] = useState(58)
-  const [tab, setTab] = useState(0)
-  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
-
-  const densityLabels = {
-    compact: t('demos.density.compact'),
-    balanced: t('demos.density.balanced'),
-    comfortable: t('demos.density.comfortable'),
-  }
-  const releaseLabels = {
-    draft: t('demos.state.draft'),
-    review: t('demos.state.review'),
-    ready: t('demos.state.ready'),
-  }
-  const launchModeLabels = {
-    windowed: t('demos.launch.windowed'),
-    maximized: t('demos.launch.maximized'),
-    focused: t('demos.launch.focused'),
-  }
-
-  const readiness = Math.min(
-    100,
-    (releaseState === 'ready' ? 40 : releaseState === 'review' ? 28 : 14) +
-      (notifications ? 18 : 6) +
-      (offlineCache ? 12 : 0) +
-      (autoArrange ? 10 : 4) +
-      (launchMode === 'maximized' ? 12 : launchMode === 'focused' ? 9 : 7) +
-      Math.round(scale / 5),
-  )
-
-  return (
-    <div className="space-y-4">
-      <PanelIntro
-        kicker="Controls"
-        title={t('demos.title')}
-        body={t('demos.body')}
-        aside={
-          <div className="shell-subtle-panel flex max-w-[18rem] items-center gap-3 px-4 py-3">
-            <span
-              className="flex h-12 w-12 items-center justify-center rounded-[18px] border shadow-[0_16px_32px_color-mix(in_srgb,var(--cp-shadow)_10%,transparent)]"
-              style={appIconSurfaceStyle('var(--cp-accent-soft)', 'window')}
-            >
-              <AppIcon iconKey="demos" className="text-white" />
-            </span>
-            <div>
-              <p className="shell-kicker">{t('apps.demos')}</p>
-              <p className="mt-1 text-sm leading-5 text-[color:var(--cp-muted)]">
-                {t('demos.previewBody')}
-              </p>
-            </div>
-          </div>
-        }
-      />
-
-      <div className="grid gap-3 md:grid-cols-3">
-        <MetricCard label={t('demos.readiness')} tone="success" value={`${readiness}%`} />
-        <MetricCard
-          label={t('demos.selection')}
-          tone="accent"
-          value={launchModeLabels[launchMode]}
-        />
-        <MetricCard
-          label={t('demos.menuState')}
-          tone={menuAnchor ? 'warning' : 'neutral'}
-          value={menuAnchor ? t('demos.menu.open') : t('demos.menu.closed')}
-        />
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(320px,0.85fr)]">
-        <div className="space-y-4">
-          <DemoSection title={t('demos.actions')} body={t('demos.actionsBody')}>
-            <div className="flex flex-wrap gap-3">
-              <Button startIcon={<Check size={16} />} type="button">
-                {t('demos.primaryAction')}
-              </Button>
-              <Button variant="outlined" type="button">
-                {t('demos.secondaryAction')}
-              </Button>
-              <Button variant="text" type="button">
-                {t('demos.tertiaryAction')}
-              </Button>
-              <Button disabled type="button">
-                {t('demos.disabledAction')}
-              </Button>
-              <Button
-                variant="outlined"
-                type="button"
-                endIcon={<ChevronDown size={16} />}
-                onClick={(event) => setMenuAnchor(event.currentTarget)}
-              >
-                {t('demos.quickMenu')}
-              </Button>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <IconButton aria-label={t('demos.searchLabel')} size="small">
-                <Search size={16} />
-              </IconButton>
-              <IconButton aria-label={t('demos.selection')} size="small">
-                <Bell size={16} />
-              </IconButton>
-              <IconButton aria-label={t('common.light')} size="small">
-                <SunMedium size={16} />
-              </IconButton>
-              <IconButton aria-label={t('common.dark')} size="small">
-                <MoonStar size={16} />
-              </IconButton>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Chip size="small" label={`${t('common.theme')}: ${t(themeMode === 'light' ? 'common.light' : 'common.dark')}`} />
-              <Chip size="small" label={`${t('common.language')}: ${localeLabels[locale as keyof typeof localeLabels] ?? locale}`} />
-              <Chip size="small" label={`${t('demos.stateLabel')}: ${releaseLabels[releaseState]}`} />
-            </div>
-
-            <Menu
-              anchorEl={menuAnchor}
-              open={Boolean(menuAnchor)}
-              onClose={() => setMenuAnchor(null)}
-            >
-              <MenuItem onClick={() => setMenuAnchor(null)}>
-                {t('demos.quickMenu.pin')}
-              </MenuItem>
-              <MenuItem onClick={() => setMenuAnchor(null)}>
-                {t('demos.quickMenu.duplicate')}
-              </MenuItem>
-              <MenuItem onClick={() => setMenuAnchor(null)}>
-                {t('demos.quickMenu.archive')}
-              </MenuItem>
-            </Menu>
-          </DemoSection>
-
-          <DemoSection title={t('demos.inputs')} body={t('demos.inputsBody')}>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <TextField
-                label={t('demos.searchLabel')}
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-              />
-              <TextField
-                label={t('demos.ownerLabel')}
-                value={owner}
-                onChange={(event) => setOwner(event.target.value)}
-              />
-              <TextField
-                select
-                label={t('demos.densityLabel')}
-                value={density}
-                onChange={(event) =>
-                  setDensity(event.target.value as 'compact' | 'balanced' | 'comfortable')
-                }
-                SelectProps={{ native: true }}
-              >
-                {Object.entries(densityLabels).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </TextField>
-              <TextField
-                select
-                label={t('demos.stateLabel')}
-                value={releaseState}
-                onChange={(event) =>
-                  setReleaseState(event.target.value as 'draft' | 'review' | 'ready')
-                }
-                SelectProps={{ native: true }}
-              >
-                {Object.entries(releaseLabels).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </TextField>
-              <div className="sm:col-span-2">
-                <TextField
-                  label={t('demos.notesLabel')}
-                  value={notes}
-                  multiline
-                  minRows={4}
-                  onChange={(event) => setNotes(event.target.value)}
-                />
-              </div>
-            </div>
-          </DemoSection>
-        </div>
-
-        <div className="space-y-4">
-          <DemoSection title={t('demos.selectionTitle')} body={t('demos.selectionBody')}>
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(220px,0.9fr)]">
-              <div className="space-y-3">
-                <div className="rounded-[22px] border border-[color:color-mix(in_srgb,var(--cp-border)_84%,transparent)] bg-[color:color-mix(in_srgb,var(--cp-surface)_88%,transparent)] px-4 py-3">
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={notifications}
-                        onChange={(event) => setNotifications(event.target.checked)}
-                      />
-                    }
-                    label={t('demos.selection.notifications')}
-                  />
-                </div>
-                <div className="rounded-[22px] border border-[color:color-mix(in_srgb,var(--cp-border)_84%,transparent)] bg-[color:color-mix(in_srgb,var(--cp-surface)_88%,transparent)] px-4 py-3">
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={offlineCache}
-                        onChange={(event) => setOfflineCache(event.target.checked)}
-                      />
-                    }
-                    label={t('demos.selection.offline')}
-                  />
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={autoArrange}
-                        onChange={(event) => setAutoArrange(event.target.checked)}
-                      />
-                    }
-                    label={t('demos.selection.autoArrange')}
-                  />
-                </div>
-                <div className="rounded-[22px] border border-[color:color-mix(in_srgb,var(--cp-border)_84%,transparent)] bg-[color:color-mix(in_srgb,var(--cp-surface)_88%,transparent)] px-4 py-3">
-                  <p className="mb-2 text-sm font-medium text-[color:var(--cp-text)]">
-                    {t('demos.launchMode')}
-                  </p>
-                  <RadioGroup
-                    value={launchMode}
-                    onChange={(event) =>
-                      setLaunchMode(
-                        event.target.value as 'windowed' | 'maximized' | 'focused',
-                      )
-                    }
-                  >
-                    <FormControlLabel
-                      value="windowed"
-                      control={<Radio />}
-                      label={launchModeLabels.windowed}
-                    />
-                    <FormControlLabel
-                      value="maximized"
-                      control={<Radio />}
-                      label={launchModeLabels.maximized}
-                    />
-                    <FormControlLabel
-                      value="focused"
-                      control={<Radio />}
-                      label={launchModeLabels.focused}
-                    />
-                  </RadioGroup>
-                </div>
-              </div>
-
-              <div className="rounded-[24px] border border-[color:color-mix(in_srgb,var(--cp-border)_84%,transparent)] bg-[color:color-mix(in_srgb,var(--cp-surface)_90%,transparent)] px-4 py-4">
-                <p className="shell-kicker">{t('demos.scale')}</p>
-                <div className="mt-4 px-1">
-                  <Slider
-                    value={scale}
-                    min={20}
-                    max={100}
-                    onChange={(_, value) => setScale(value as number)}
-                  />
-                </div>
-                <div className="mt-4 rounded-[20px] bg-[color:color-mix(in_srgb,var(--cp-accent-soft)_12%,var(--cp-surface))] px-4 py-3">
-                  <p className="text-sm text-[color:var(--cp-muted)]">{t('demos.progressValue')}</p>
-                  <p className="mt-1 font-display text-3xl font-semibold text-[color:var(--cp-text)]">
-                    {scale}%
-                  </p>
-                </div>
-              </div>
-            </div>
-          </DemoSection>
-
-          <DemoSection title={t('demos.feedback')} body={t('demos.feedbackBody')}>
-            <Tabs
-              value={tab}
-              onChange={(_, value) => setTab(value)}
-              variant={isCompact ? 'scrollable' : 'fullWidth'}
-              allowScrollButtonsMobile
-            >
-              <Tab label={t('demos.tab.alerts')} />
-              <Tab label={t('demos.tab.status')} />
-              <Tab label={t('demos.tab.preview')} />
-            </Tabs>
-
-            <div className="mt-4">
-              {tab === 0 ? (
-                <div className="space-y-3">
-                  <Alert severity="info">{t('demos.alert.info')}</Alert>
-                  <Alert severity="success">{t('demos.alert.success')}</Alert>
-                  <Alert severity="warning">{t('demos.alert.warning')}</Alert>
-                  <Alert severity="error">{t('demos.alert.error')}</Alert>
-                </div>
-              ) : null}
-
-              {tab === 1 ? (
-                <div className="space-y-4">
-                  <div className="rounded-[22px] border border-[color:color-mix(in_srgb,var(--cp-border)_84%,transparent)] bg-[color:color-mix(in_srgb,var(--cp-surface)_88%,transparent)] px-4 py-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-medium text-[color:var(--cp-text)]">
-                        {t('demos.progressLabel')}
-                      </p>
-                      <span className="text-sm font-semibold text-[color:var(--cp-muted)]">
-                        {readiness}%
-                      </span>
-                    </div>
-                    <LinearProgress
-                      className="!mt-4"
-                      variant="determinate"
-                      value={readiness}
-                    />
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Chip label={densityLabels[density]} />
-                    <Chip label={launchModeLabels[launchMode]} />
-                    <Chip label={offlineCache ? t('demos.selection.offline') : t('demos.quickMenu')} />
-                  </div>
-                </div>
-              ) : null}
-
-              {tab === 2 ? (
-                <div className="rounded-[24px] border border-[color:color-mix(in_srgb,var(--cp-border)_84%,transparent)] bg-[color:color-mix(in_srgb,var(--cp-surface)_92%,transparent)] p-4">
-                  <div className="flex items-start gap-4">
-                    <span
-                      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border shadow-[0_12px_26px_color-mix(in_srgb,var(--cp-shadow)_10%,transparent)]"
-                      style={appIconSurfaceStyle('var(--cp-accent-soft)', 'window')}
-                    >
-                      <AppIcon iconKey="demos" className="text-white" />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="font-display text-lg font-semibold text-[color:var(--cp-text)]">
-                        {query || t('apps.demos')}
-                      </p>
-                      <p className="mt-1 text-sm leading-6 text-[color:var(--cp-muted)]">
-                        {t('demos.previewTitle')}
-                      </p>
-                    </div>
-                  </div>
-
-                  <p className="mt-4 rounded-[20px] bg-[color:color-mix(in_srgb,var(--cp-surface-2)_88%,transparent)] px-4 py-3 text-sm leading-6 text-[color:var(--cp-muted)]">
-                    {notes}
-                  </p>
-
-                  <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                    <div className="rounded-[18px] bg-[color:color-mix(in_srgb,var(--cp-accent-soft)_12%,var(--cp-surface))] px-3 py-3 text-sm">
-                      <span className="text-[color:var(--cp-muted)]">{t('demos.ownerLabel')}</span>
-                      <p className="mt-1 font-medium text-[color:var(--cp-text)]">{owner}</p>
-                    </div>
-                    <div className="rounded-[18px] bg-[color:color-mix(in_srgb,var(--cp-accent-soft)_12%,var(--cp-surface))] px-3 py-3 text-sm">
-                      <span className="text-[color:var(--cp-muted)]">{t('demos.densityLabel')}</span>
-                      <p className="mt-1 font-medium text-[color:var(--cp-text)]">
-                        {densityLabels[density]}
-                      </p>
-                    </div>
-                    <div className="rounded-[18px] bg-[color:color-mix(in_srgb,var(--cp-accent-soft)_12%,var(--cp-surface))] px-3 py-3 text-sm">
-                      <span className="text-[color:var(--cp-muted)]">{t('demos.stateLabel')}</span>
-                      <p className="mt-1 font-medium text-[color:var(--cp-text)]">
-                        {releaseLabels[releaseState]}
-                      </p>
-                    </div>
-                    <div className="rounded-[18px] bg-[color:color-mix(in_srgb,var(--cp-accent-soft)_12%,var(--cp-surface))] px-3 py-3 text-sm">
-                      <span className="text-[color:var(--cp-muted)]">{t('demos.launchMode')}</span>
-                      <p className="mt-1 font-medium text-[color:var(--cp-text)]">
-                        {launchModeLabels[launchMode]}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </DemoSection>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function DemoSection({
-  body,
-  children,
-  title,
-}: {
-  body: string
-  children: ReactNode
-  title: string
-}) {
-  return (
-    <section className="shell-subtle-panel p-4 sm:p-5">
-      <div className="max-w-2xl">
-        <p className="font-display text-lg font-semibold text-[color:var(--cp-text)]">
-          {title}
-        </p>
-        <p className="mt-1 text-sm leading-6 text-[color:var(--cp-muted)]">{body}</p>
-      </div>
-      <div className="mt-4">{children}</div>
-    </section>
   )
 }

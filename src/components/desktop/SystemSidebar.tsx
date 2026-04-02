@@ -1,7 +1,6 @@
 import clsx from 'clsx'
 import {
   House,
-  PanelLeft,
   ShieldAlert,
   ShieldCheck,
   ShieldX,
