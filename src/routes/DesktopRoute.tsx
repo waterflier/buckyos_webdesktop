@@ -20,7 +20,6 @@ import {
   Maximize2,
   Minimize2,
   Settings,
-  ShieldCheck,
   Square,
   StickyNote,
   Store,
@@ -333,7 +332,6 @@ export function DesktopRoute() {
   const initialScenario =
     (searchParams.get('scenario') as MockScenario | null) ?? 'normal'
   const [scenario] = useState<MockScenario>(initialScenario)
-  const [currentPage, setCurrentPage] = useState(0)
   const [layoutState, setLayoutState] = useState<LayoutState | null>(null)
   const [windows, setWindows] = useState<WindowRecord[]>([])
   const [snackbar, setSnackbar] = useState<string | null>(null)
@@ -369,7 +367,6 @@ export function DesktopRoute() {
   const apps = data?.apps ?? []
   const currentSpec = gridSpec[formFactor]
   const resetViewportState = () => {
-    setCurrentPage(0)
     setWindows([])
   }
   const applyResolvedLayout = (nextLayout: LayoutState) => {
@@ -612,11 +609,38 @@ export function DesktopRoute() {
     })
   }
 
+  const suppressNextOpen = (itemId: string) => {
+    suppressOpenItemId.current = itemId
+    window.setTimeout(() => {
+      if (suppressOpenItemId.current === itemId) {
+        suppressOpenItemId.current = null
+      }
+    }, 180)
+  }
+
+  const handleGridDragStart = (
+    _pageId: string,
+    oldItem: GridLayoutItem | null,
+    newItem: GridLayoutItem | null,
+  ) => {
+    const itemId = newItem?.i ?? oldItem?.i
+    if (!itemId) {
+      return
+    }
+
+    suppressNextOpen(itemId)
+  }
+
   const handleGridDragStop = (
     pageId: string,
     oldItem: GridLayoutItem | null,
     newItem: GridLayoutItem | null,
   ) => {
+    const itemId = newItem?.i ?? oldItem?.i
+    if (itemId) {
+      suppressNextOpen(itemId)
+    }
+
     if (!newItem) {
       return
     }
@@ -645,12 +669,6 @@ export function DesktopRoute() {
       }
     })
 
-    suppressOpenItemId.current = newItem.i
-    window.setTimeout(() => {
-      if (suppressOpenItemId.current === newItem.i) {
-        suppressOpenItemId.current = null
-      }
-    }, 140)
   }
 
   const moveItemBetweenPages = (itemId: string, direction: -1 | 1) => {
@@ -772,14 +790,12 @@ export function DesktopRoute() {
               <StatusBar
                 activeMobileWindow={Boolean(isMobile && topMobileWindow)}
                 deadZone={resolvedDeadZone}
-                currentPage={currentPage}
                 formFactor={formFactor}
                 onStatusAction={
                   isMobile && topMobileWindow
                     ? () => handleCloseWindow(topMobileWindow.id)
                     : undefined
                 }
-                pageCount={layoutState.pages.length}
               />
               <div
                 className="relative"
@@ -798,7 +814,6 @@ export function DesktopRoute() {
                     modules={[Pagination]}
                     allowTouchMove={isMobile}
                     pagination={{ clickable: true }}
-                    onSlideChange={(swiper) => setCurrentPage(swiper.activeIndex)}
                     className="h-full"
                     style={{ height: workspaceInnerHeight }}
                   >
@@ -824,6 +839,9 @@ export function DesktopRoute() {
                               threshold: isMobile ? 5 : 4,
                             }}
                             compactor={noCompactor}
+                            onDragStart={(_, oldItem, newItem) =>
+                              handleGridDragStart(page.id, oldItem, newItem)
+                            }
                             onLayoutChange={(next: Layout) =>
                               handleLayoutChange(page.id, next)
                             }
@@ -1030,7 +1048,7 @@ function PanelIntro({
           <p className="mt-2 font-display text-xl font-semibold sm:text-2xl">{title}</p>
           <p className="mt-2 text-sm leading-6 text-[color:var(--cp-muted)]">{body}</p>
         </div>
-        {aside ? <div className="sm:shrink-0">{aside}</div> : null}
+        {aside ? <div className="hidden sm:block sm:shrink-0">{aside}</div> : null}
       </div>
     </section>
   )
@@ -1116,23 +1134,20 @@ function EmptyState({ onRestore }: { onRestore: () => void }) {
 
 function StatusBar({
   activeMobileWindow,
-  currentPage,
   deadZone,
   formFactor,
   onStatusAction,
-  pageCount,
 }: {
   activeMobileWindow?: boolean
-  currentPage: number
   deadZone: LayoutState['deadZone']
   formFactor: FormFactor
   onStatusAction?: () => void
-  pageCount: number
 }) {
   const { locale, t } = useI18n()
   const now = useMinuteClock()
   const showHomeAction =
     formFactor === 'mobile' && activeMobileWindow && typeof onStatusAction === 'function'
+  const barHeight = Math.min(deadZone.top, formFactor === 'mobile' ? 38 : 42)
 
   return (
     <div
@@ -1140,52 +1155,38 @@ function StatusBar({
       className="pointer-events-none absolute inset-x-0 top-0 z-50"
       style={{ height: deadZone.top }}
     >
-      <div className="absolute inset-x-0 top-0 h-full bg-[linear-gradient(180deg,color-mix(in_srgb,var(--cp-surface)_94%,transparent),color-mix(in_srgb,var(--cp-surface)_48%,transparent))] backdrop-blur-xl" />
       <div
-        className="absolute inset-y-0 left-0 bg-[color:color-mix(in_srgb,var(--cp-accent)_10%,transparent)]"
-        style={{ width: deadZone.left }}
+        className="absolute inset-x-0 bg-[linear-gradient(180deg,color-mix(in_srgb,var(--cp-surface)_94%,transparent),color-mix(in_srgb,var(--cp-surface)_68%,transparent))] backdrop-blur-xl"
+        style={{ top: 0, height: barHeight }}
       />
       <div
-        className="absolute inset-y-0 right-0 bg-[color:color-mix(in_srgb,var(--cp-accent)_10%,transparent)]"
-        style={{ width: deadZone.right }}
+        className="absolute inset-x-0 h-px bg-[color:var(--cp-border)]/80"
+        style={{ top: barHeight }}
       />
-      <div className="absolute inset-x-0 bottom-0 h-px bg-[color:var(--cp-border)]/80" />
-      <div className="relative flex h-full items-center justify-between gap-3 px-3 text-[color:var(--cp-text)] sm:px-6">
-        <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+      <div
+        className="relative flex items-center justify-between gap-2 px-3 text-[color:var(--cp-text)] sm:gap-3 sm:px-6"
+        style={{ height: barHeight }}
+      >
+        <div className="flex min-w-0 items-center">
           {showHomeAction ? (
             <button
               type="button"
               aria-label={`${t('common.back')} BuckyOS`}
               data-testid="status-home-action"
               onClick={onStatusAction}
-              className="shell-pill pointer-events-auto px-3 py-1.5 font-display text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--cp-text)] active:scale-[0.98]"
+              className="pointer-events-auto inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap bg-transparent px-0 font-display text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--cp-muted)] active:scale-[0.98] sm:text-xs sm:tracking-[0.28em]"
             >
               <span className="h-2 w-2 rounded-full bg-[color:var(--cp-accent)]" />
-              {'<- BuckyOS'}
+              BuckyOS
             </button>
           ) : (
-            <div className="shell-pill px-3 py-1.5 font-display text-xs font-semibold uppercase tracking-[0.28em] text-[color:var(--cp-muted)]">
+            <div className="inline-flex min-w-0 items-center gap-1.5 whitespace-nowrap px-0 font-display text-[11px] font-semibold uppercase tracking-[0.2em] text-[color:var(--cp-muted)] sm:text-xs sm:tracking-[0.28em]">
               <span className="h-2 w-2 rounded-full bg-[color:var(--cp-accent)]" />
               BuckyOS
             </div>
           )}
-          <div className="shell-pill hidden px-3 py-1 text-xs sm:flex">
-            <ShieldCheck className="size-3.5 text-[color:var(--cp-success)]" />
-            {t('shell.secure')}
-          </div>
         </div>
-        <div className="shell-pill hidden px-4 py-1.5 text-xs sm:flex">
-          <span className="font-medium text-[color:var(--cp-text)]">{t('shell.home')}</span>
-          <span className="text-[color:var(--cp-border)]">•</span>
-          <span>
-            {formFactor === 'mobile' ? t('shell.mobile') : t('shell.desktop')} {currentPage + 1}/{pageCount}
-          </span>
-          <span className="text-[color:var(--cp-border)]">•</span>
-          <span>
-            {new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(now)}
-          </span>
-        </div>
-        <div className="shell-pill px-3 py-1.5 text-xs">
+        <div className="shell-pill ml-auto shrink-0 px-3 py-1.5 text-xs">
           <BellDot className="hidden size-4 sm:block" />
           <Wifi className="size-4" />
           <BatteryFull className="size-4" />
@@ -1259,12 +1260,15 @@ function DesktopTile({
     <div
       data-testid={`desktop-item-${item.id}`}
       className={clsx(
-        'desktop-tile-shell group relative h-full rounded-[28px] border border-transparent transition-[transform,border-color,box-shadow,background-color] duration-200 ease-[var(--cp-ease-emphasis)]',
+        'desktop-tile-shell group relative h-full border border-transparent transition-[transform,border-color,box-shadow,background-color] duration-200 ease-[var(--cp-ease-emphasis)]',
+        item.type === 'widget' ? 'rounded-[22px]' : 'rounded-[28px]',
         item.type === 'widget' ? 'overflow-hidden' : 'overflow-visible',
         isDesktop ? 'cursor-grab active:cursor-grabbing' : '',
         isSelected
           ? 'border-[color:color-mix(in_srgb,var(--cp-accent)_46%,transparent)] shadow-[0_0_0_4px_color-mix(in_srgb,var(--cp-accent)_15%,transparent)]'
-          : 'hover:border-[color:color-mix(in_srgb,var(--cp-border)_84%,transparent)]',
+          : item.type === 'widget'
+            ? 'hover:border-[color:color-mix(in_srgb,var(--cp-border)_84%,transparent)]'
+            : '',
       )}
       onContextMenu={onOpenContextMenu}
     >
@@ -1279,27 +1283,20 @@ function DesktopTile({
           data-testid={`desktop-app-${app.id}`}
           title={t(app.labelKey, app.id)}
           className={clsx(
-            'flex h-full w-full flex-col items-center rounded-[28px] bg-transparent text-center transition-[transform,background-color,box-shadow] duration-200 ease-[var(--cp-ease-emphasis)] hover:-translate-y-0.5 hover:bg-[color:color-mix(in_srgb,var(--cp-surface)_88%,transparent)] focus-visible:bg-[color:color-mix(in_srgb,var(--cp-accent-soft)_10%,var(--cp-surface))]',
+            'flex h-full w-full flex-col items-center rounded-[28px] bg-transparent text-center transition-[background-color,box-shadow] duration-200 ease-[var(--cp-ease-emphasis)] focus-visible:bg-[color:color-mix(in_srgb,var(--cp-accent-soft)_10%,var(--cp-surface))]',
             isDesktop ? 'cursor-grab active:cursor-grabbing' : '',
             isCompactAppTile ? 'justify-center gap-1.5 px-1 py-2' : 'justify-center gap-2 px-2',
           )}
         >
           <span
             className={clsx(
-              'relative flex items-center justify-center overflow-hidden border shadow-[0_18px_34px_color-mix(in_srgb,var(--cp-shadow)_18%,transparent)]',
+              'relative flex items-center justify-center overflow-hidden border shadow-[0_16px_28px_color-mix(in_srgb,var(--cp-shadow)_14%,transparent)]',
               isCompactAppTile
                 ? 'h-11 w-11 rounded-[15px]'
                 : 'h-14 w-14 rounded-[20px] sm:h-16 sm:w-16',
             )}
-            style={{
-              borderColor: `color-mix(in srgb, ${app.accent} 30%, white)`,
-              background: `linear-gradient(165deg, color-mix(in srgb, ${app.accent} 82%, white), color-mix(in srgb, ${app.accent} 26%, var(--cp-bg)))`,
-            }}
+            style={appIconSurfaceStyle(app.accent)}
           >
-            <span
-              className="absolute inset-x-[22%] top-[14%] h-[32%] rounded-full bg-white/26 blur-md"
-              aria-hidden
-            />
             <AppIcon iconKey={app.iconKey} />
           </span>
           <span
@@ -1316,7 +1313,7 @@ function DesktopTile({
       ) : null}
 
       {item.type === 'widget' && item.widgetType === 'clock' ? (
-        <div className="flex h-full flex-col justify-between rounded-[28px] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--cp-surface-3)_100%,transparent),color-mix(in_srgb,var(--cp-surface-2)_96%,transparent))] p-4">
+        <div className="flex h-full flex-col justify-between rounded-[22px] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--cp-surface-3)_100%,transparent),color-mix(in_srgb,var(--cp-surface-2)_96%,transparent))] p-4">
           <div className="flex items-center justify-between gap-2 text-[color:var(--cp-muted)]">
             <div className="flex items-center gap-2">
               <Clock3 className="size-4" />
@@ -1330,8 +1327,8 @@ function DesktopTile({
               }).format(now)}
             </span>
           </div>
-          <div>
-            <p className="font-display text-3xl font-semibold tracking-[-0.04em] text-[color:var(--cp-text)] sm:text-5xl">
+          <div className="-mt-1">
+            <p className="font-display whitespace-nowrap text-[1.72rem] font-semibold leading-[0.94] tracking-[-0.05em] text-[color:var(--cp-text)] sm:text-[2.8rem] lg:text-5xl">
               {new Intl.DateTimeFormat(locale, {
                 hour: '2-digit',
                 minute: '2-digit',
@@ -1358,6 +1355,16 @@ function DesktopTile({
 function AppIcon({ iconKey }: { iconKey: string }) {
   const Icon = iconMap[iconKey as keyof typeof iconMap] ?? LayoutGrid
   return <Icon className="relative z-10 size-7 text-white sm:size-8" />
+}
+
+function appIconSurfaceStyle(accent: string, tone: 'tile' | 'window' = 'tile') {
+  const leadingMix = tone === 'tile' ? '68%' : '60%'
+  const trailingMix = tone === 'tile' ? '18%' : '14%'
+
+  return {
+    borderColor: `color-mix(in srgb, ${accent} 18%, var(--cp-border))`,
+    background: `linear-gradient(165deg, color-mix(in srgb, ${accent} ${leadingMix}, var(--cp-surface-2)), color-mix(in srgb, ${accent} ${trailingMix}, var(--cp-surface)))`,
+  }
 }
 
 function NotepadWidget({
@@ -1391,7 +1398,7 @@ function NotepadWidget({
   return (
     <form
       onSubmit={form.handleSubmit((values) => onSave(itemId, values.content))}
-      className="flex h-full flex-col rounded-[28px] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--cp-surface-3)_86%,transparent),color-mix(in_srgb,var(--cp-surface-2)_96%,transparent))] p-4"
+      className="flex h-full flex-col rounded-[22px] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--cp-surface-3)_86%,transparent),color-mix(in_srgb,var(--cp-surface-2)_96%,transparent))] p-4"
     >
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-[color:var(--cp-muted)]">
@@ -1407,7 +1414,7 @@ function NotepadWidget({
       <textarea
         {...form.register('content')}
         aria-invalid={form.formState.isSubmitted && !form.formState.isValid}
-        className="widget-interactive min-h-0 flex-1 resize-none rounded-[22px] border border-[color:var(--cp-border)] bg-[color:color-mix(in_srgb,var(--cp-surface)_96%,transparent)] p-3 text-sm leading-6 text-[color:var(--cp-text)] shadow-[inset_0_1px_0_color-mix(in_srgb,white_35%,transparent)] outline-none placeholder:text-[color:var(--cp-muted)] focus:border-[color:var(--cp-accent)]"
+        className="widget-interactive min-h-0 flex-1 resize-none rounded-[18px] border border-[color:var(--cp-border)] bg-[color:color-mix(in_srgb,var(--cp-surface)_96%,transparent)] p-3 text-sm leading-6 text-[color:var(--cp-text)] shadow-[inset_0_1px_0_color-mix(in_srgb,white_35%,transparent)] outline-none placeholder:text-[color:var(--cp-muted)] focus:border-[color:var(--cp-accent)]"
         placeholder={t('widgets.notesPlaceholder')}
       />
       <div className="mt-3 flex items-center justify-between gap-3">
@@ -1697,11 +1704,8 @@ function DesktopWindowLayer({
             >
               <div className="min-w-0 flex items-center gap-3">
                 <span
-                  className="flex h-10 w-10 items-center justify-center rounded-[16px] border shadow-[0_12px_24px_color-mix(in_srgb,var(--cp-shadow)_16%,transparent)]"
-                  style={{
-                    borderColor: `color-mix(in srgb, ${app.accent} 24%, white)`,
-                    background: `linear-gradient(165deg, color-mix(in srgb, ${app.accent} 78%, white), color-mix(in srgb, ${app.accent} 24%, var(--cp-bg)))`,
-                  }}
+                  className="flex h-10 w-10 items-center justify-center rounded-[16px] border shadow-[0_10px_18px_color-mix(in_srgb,var(--cp-shadow)_14%,transparent)]"
+                  style={appIconSurfaceStyle(app.accent, 'window')}
                 >
                   <AppIcon iconKey={app.iconKey} />
                 </span>
@@ -1817,20 +1821,24 @@ function MobileWindowSheet({
           paddingBottom: deadZone.bottom,
         }}
       >
-        <div className="flex items-center justify-between gap-3 border-b border-[color:var(--cp-border)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--cp-surface-2)_96%,transparent),color-mix(in_srgb,var(--cp-surface)_94%,transparent))] px-4 py-3 backdrop-blur-xl">
-          <div className="min-w-0 flex items-center gap-3">
-            <IconButton aria-label={t('common.back')} onClick={onBack}>
+        <div className="flex items-center justify-between gap-3 border-b border-[color:var(--cp-border)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--cp-surface-2)_96%,transparent),color-mix(in_srgb,var(--cp-surface)_94%,transparent))] px-3.5 py-2.5 backdrop-blur-xl sm:px-4 sm:py-3">
+          <div className="min-w-0 flex items-center gap-2.5 sm:gap-3">
+            <IconButton aria-label={t('common.back')} size="small" onClick={onBack}>
               <Minimize2 className="size-4 rotate-90" />
             </IconButton>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <p className="truncate font-display text-sm font-semibold">{t(app.labelKey)}</p>
-                <TierBadge tier={app.tier} />
+                <span className="hidden sm:inline-flex">
+                  <TierBadge tier={app.tier} />
+                </span>
               </div>
-              <p className="truncate text-xs text-[color:var(--cp-muted)]">{t(app.summaryKey)}</p>
+              <p className="hidden truncate text-xs text-[color:var(--cp-muted)] sm:block">
+                {t(app.summaryKey)}
+              </p>
             </div>
           </div>
-          <IconButton aria-label={t('common.close')} onClick={onClose}>
+          <IconButton aria-label={t('common.close')} size="small" onClick={onClose}>
             <X className="size-4" />
           </IconButton>
         </div>

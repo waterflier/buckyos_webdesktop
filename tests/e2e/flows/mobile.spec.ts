@@ -19,7 +19,9 @@ test('mobile viewport opens in-place app with system title bar', async ({
   await page.goto('/?scenario=normal')
 
   await expect(page.getByTestId('drag-settings')).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Marketplace' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Settings' })).toBeVisible()
+  await expect(page.getByLabel('Status bar').locator('.shell-pill:visible')).toHaveCount(1)
+  await expect(page.getByText('Secure session')).toHaveCount(0)
 
   const filesTile = page.getByTestId('desktop-item-app-files-mobile')
   const beforeDrag = await filesTile.boundingBox()
@@ -36,7 +38,8 @@ test('mobile viewport opens in-place app with system title bar', async ({
   await page.getByRole('button', { name: 'Settings' }).tap()
   await expect(page.getByText('System defaults')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Back', exact: true })).toBeVisible()
-  await expect(page.getByTestId('status-home-action')).toHaveText('<- BuckyOS')
+  await expect(page.getByLabel('Status bar').locator('.shell-pill:visible')).toHaveCount(1)
+  await expect(page.getByTestId('status-home-action')).toContainText('BuckyOS')
   await page.getByTestId('status-home-action').tap()
   await expect(page.getByText('System defaults')).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Settings' })).toBeVisible()
