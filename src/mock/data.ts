@@ -1,0 +1,347 @@
+import type {
+  AppDefinition,
+  DesktopPayload,
+  FormFactor,
+  LayoutItem,
+  LayoutState,
+  MockScenario,
+} from '../models/ui'
+
+const appCatalog: AppDefinition[] = [
+  {
+    id: 'settings',
+    iconKey: 'settings',
+    labelKey: 'apps.settings',
+    summaryKey: 'appSummary.settings',
+    accent: 'var(--cp-accent)',
+    tier: 'system',
+    manifest: {
+      defaultMode: 'windowed',
+      allowMinimize: true,
+      allowMaximize: true,
+      allowClose: true,
+      allowFullscreen: false,
+      mobileFullscreenBehavior: 'keep_dead_zone',
+      titleBarMode: 'system',
+      placement: 'inplace',
+    },
+  },
+  {
+    id: 'files',
+    iconKey: 'files',
+    labelKey: 'apps.files',
+    summaryKey: 'appSummary.files',
+    accent: 'var(--cp-success)',
+    tier: 'sdk',
+    manifest: {
+      defaultMode: 'windowed',
+      allowMinimize: true,
+      allowMaximize: true,
+      allowClose: true,
+      allowFullscreen: false,
+      mobileFullscreenBehavior: 'cover_dead_zone',
+      titleBarMode: 'system',
+      placement: 'inplace',
+    },
+  },
+  {
+    id: 'studio',
+    iconKey: 'studio',
+    labelKey: 'apps.studio',
+    summaryKey: 'appSummary.studio',
+    accent: 'var(--cp-warning)',
+    tier: 'sdk',
+    manifest: {
+      defaultMode: 'windowed',
+      allowMinimize: true,
+      allowMaximize: true,
+      allowClose: true,
+      allowFullscreen: true,
+      mobileFullscreenBehavior: 'cover_dead_zone',
+      titleBarMode: 'system',
+      placement: 'inplace',
+    },
+  },
+  {
+    id: 'market',
+    iconKey: 'market',
+    labelKey: 'apps.market',
+    summaryKey: 'appSummary.market',
+    accent: 'var(--cp-ink-accent)',
+    tier: 'system',
+    manifest: {
+      defaultMode: 'windowed',
+      allowMinimize: true,
+      allowMaximize: true,
+      allowClose: true,
+      allowFullscreen: false,
+      mobileFullscreenBehavior: 'cover_dead_zone',
+      titleBarMode: 'system',
+      placement: 'inplace',
+    },
+  },
+  {
+    id: 'diagnostics',
+    iconKey: 'diagnostics',
+    labelKey: 'apps.diagnostics',
+    summaryKey: 'appSummary.diagnostics',
+    accent: 'var(--cp-danger)',
+    tier: 'system',
+    manifest: {
+      defaultMode: 'windowed',
+      allowMinimize: true,
+      allowMaximize: true,
+      allowClose: true,
+      allowFullscreen: false,
+      mobileFullscreenBehavior: 'cover_dead_zone',
+      titleBarMode: 'system',
+      placement: 'inplace',
+    },
+  },
+  {
+    id: 'docs',
+    iconKey: 'docs',
+    labelKey: 'apps.docs',
+    summaryKey: 'appSummary.docs',
+    accent: 'var(--cp-accent-soft)',
+    tier: 'external',
+    manifest: {
+      defaultMode: 'maximized',
+      allowMinimize: false,
+      allowMaximize: false,
+      allowClose: true,
+      allowFullscreen: true,
+      mobileFullscreenBehavior: 'cover_dead_zone',
+      titleBarMode: 'custom',
+      placement: 'new-container',
+    },
+  },
+]
+
+const desktopItems: LayoutItem[][] = [
+  [
+    {
+      id: 'widget-clock',
+      type: 'widget',
+      widgetType: 'clock',
+      x: 0,
+      y: 0,
+      w: 2,
+      h: 1,
+      config: {},
+    },
+    {
+      id: 'app-settings',
+      type: 'app',
+      appId: 'settings',
+      x: 2,
+      y: 0,
+      w: 1,
+      h: 1,
+    },
+    {
+      id: 'app-files',
+      type: 'app',
+      appId: 'files',
+      x: 3,
+      y: 0,
+      w: 1,
+      h: 1,
+    },
+    {
+      id: 'app-studio',
+      type: 'app',
+      appId: 'studio',
+      x: 4,
+      y: 0,
+      w: 1,
+      h: 1,
+    },
+    {
+      id: 'app-market',
+      type: 'app',
+      appId: 'market',
+      x: 5,
+      y: 0,
+      w: 1,
+      h: 1,
+    },
+    {
+      id: 'app-docs',
+      type: 'app',
+      appId: 'docs',
+      x: 6,
+      y: 0,
+      w: 1,
+      h: 1,
+    },
+    {
+      id: 'widget-notepad',
+      type: 'widget',
+      widgetType: 'notepad',
+      x: 0,
+      y: 1,
+      w: 2,
+      h: 2,
+      config: {
+        content: 'Review drag semantics, dead zone behavior, and window polish.',
+      },
+    },
+  ],
+  [
+    {
+      id: 'app-diagnostics',
+      type: 'app',
+      appId: 'diagnostics',
+      x: 0,
+      y: 0,
+      w: 1,
+      h: 1,
+    },
+  ],
+]
+
+const mobileItems: LayoutItem[][] = [
+  [
+    {
+      id: 'widget-clock-mobile',
+      type: 'widget',
+      widgetType: 'clock',
+      x: 0,
+      y: 0,
+      w: 2,
+      h: 1,
+      config: {},
+    },
+    {
+      id: 'app-settings-mobile',
+      type: 'app',
+      appId: 'settings',
+      x: 2,
+      y: 0,
+      w: 1,
+      h: 1,
+    },
+    {
+      id: 'app-files-mobile',
+      type: 'app',
+      appId: 'files',
+      x: 3,
+      y: 0,
+      w: 1,
+      h: 1,
+    },
+    {
+      id: 'app-studio-mobile',
+      type: 'app',
+      appId: 'studio',
+      x: 0,
+      y: 1,
+      w: 1,
+      h: 1,
+    },
+    {
+      id: 'app-market-mobile',
+      type: 'app',
+      appId: 'market',
+      x: 1,
+      y: 1,
+      w: 1,
+      h: 1,
+    },
+    {
+      id: 'app-docs-mobile',
+      type: 'app',
+      appId: 'docs',
+      x: 2,
+      y: 1,
+      w: 1,
+      h: 1,
+    },
+    {
+      id: 'app-diagnostics-mobile',
+      type: 'app',
+      appId: 'diagnostics',
+      x: 3,
+      y: 1,
+      w: 1,
+      h: 1,
+    },
+  ],
+  [
+    {
+      id: 'widget-notepad-mobile',
+      type: 'widget',
+      widgetType: 'notepad',
+      x: 0,
+      y: 0,
+      w: 2,
+      h: 2,
+      config: {
+        content: 'Validate mobile maximize semantics and external app fallback.',
+      },
+    },
+  ],
+]
+
+function createLayout(formFactor: FormFactor, items: LayoutItem[][]): LayoutState {
+  return {
+    version: 1,
+    formFactor,
+    deadZone:
+      formFactor === 'desktop'
+        ? { top: 64, bottom: 24, left: 20, right: 20 }
+        : { top: 52, bottom: 20, left: 12, right: 12 },
+    pages: items.map((pageItems, index) => ({
+      id: `${formFactor}-page-${index + 1}`,
+      items: pageItems,
+    })),
+  }
+}
+
+export function buildDesktopPayload(
+  formFactor: FormFactor,
+  scenario: MockScenario,
+): DesktopPayload {
+  if (scenario === 'empty') {
+    return {
+      overview: {
+        titleKey: 'shell.title',
+        subtitleKey: 'shell.subtitle',
+      },
+      apps: appCatalog,
+      layout: {
+        version: 1,
+        formFactor,
+        deadZone:
+          formFactor === 'desktop'
+            ? { top: 64, bottom: 24, left: 20, right: 20 }
+            : { top: 52, bottom: 20, left: 12, right: 12 },
+        pages: [{ id: `${formFactor}-page-1`, items: [] }],
+      },
+    }
+  }
+
+  return {
+    overview: {
+      titleKey: 'shell.title',
+      subtitleKey: 'shell.subtitle',
+    },
+    apps: appCatalog,
+    layout: createLayout(
+      formFactor,
+      formFactor === 'desktop' ? desktopItems : mobileItems,
+    ),
+  }
+}
+
+export const localeLabels = {
+  en: 'English',
+  'zh-CN': '简体中文',
+  ja: '日本語',
+  ko: '한국어',
+  fr: 'Français',
+  de: 'Deutsch',
+  es: 'Español',
+  ar: 'العربية',
+} as const
