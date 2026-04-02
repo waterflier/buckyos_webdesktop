@@ -22,6 +22,7 @@ export type DisplayMode = 'windowed' | 'maximized' | 'fullscreen'
 export type WindowState = 'windowed' | 'maximized' | 'minimized'
 export type LoadingState = 'idle' | 'loading' | 'success' | 'error'
 export type IntegrationTier = 'system' | 'sdk' | 'external'
+export type MobileStatusBarMode = 'compact' | 'standard'
 
 export interface DeadZone {
   top: number
@@ -71,6 +72,7 @@ export interface WindowManifest {
   allowClose: boolean
   allowFullscreen: boolean
   mobileFullscreenBehavior: 'cover_dead_zone' | 'keep_dead_zone'
+  mobileStatusBarMode: MobileStatusBarMode
   titleBarMode: 'system' | 'custom'
   placement: 'inplace' | 'new-container'
 }
