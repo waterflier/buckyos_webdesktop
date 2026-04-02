@@ -84,6 +84,8 @@ import type {
   MockScenario,
   NoteInput,
   SupportedLocale,
+  SystemSidebarAppItem,
+  SystemSidebarDataModel,
   SystemPreferencesInput,
   ThemeMode,
   WindowRecord,
@@ -219,6 +221,69 @@ function migrateDeadZone(layout: LayoutState, formFactor: FormFactor) {
 
 function appById(apps: AppDefinition[], appId: string) {
   return apps.find((app) => app.id === appId)
+}
+
+const systemSidebarSystemAppIds = new Set(['settings', 'diagnostics'])
+
+function createSystemSidebarDataModel(
+  apps: AppDefinition[],
+  windows: WindowRecord[],
+  currentAppId?: string,
+): SystemSidebarDataModel {
+  const appMap = new Map(apps.map((app) => [app.id, app]))
+  const toSidebarApp = (
+    app: AppDefinition | undefined,
+  ): SystemSidebarAppItem | null =>
+    app
+      ? {
+          appId: app.id,
+          iconKey: app.iconKey,
+          labelKey: app.labelKey,
+        }
+      : null
+
+  const seenSwitchApps = new Set<string>()
+  const switchApps = windows
+    .filter(
+      (windowItem) =>
+        windowItem.state === 'minimized' &&
+        windowItem.minimizedOrder !== null &&
+        !systemSidebarSystemAppIds.has(windowItem.appId),
+    )
+    .sort((a, b) => (a.minimizedOrder ?? 0) - (b.minimizedOrder ?? 0))
+    .map((windowItem) => {
+      const app = appMap.get(windowItem.appId)
+
+      if (
+        !app ||
+        windowItem.minimizedOrder === null ||
+        seenSwitchApps.has(app.id)
+      ) {
+        return null
+      }
+
+      seenSwitchApps.add(app.id)
+
+      return {
+        appId: app.id,
+        iconKey: app.iconKey,
+        labelKey: app.labelKey,
+        minimizedOrder: windowItem.minimizedOrder,
+      }
+    })
+    .filter((app): app is SystemSidebarDataModel['switchApps'][number] => Boolean(app))
+
+  const systemApps = ['settings', 'diagnostics']
+    .map((appId) => toSidebarApp(appMap.get(appId)))
+    .filter((app): app is SystemSidebarAppItem => Boolean(app))
+
+  return {
+    currentAppId,
+    runningAppCount: windows.filter((windowItem) => windowItem.state !== 'minimized')
+      .length,
+    switchApps,
+    systemApps,
+  }
 }
 
 function getPageIndex(layoutState: LayoutState, itemId: string) {
@@ -391,6 +456,7 @@ function createWindowRecord(
     id: `${app.id}-${Date.now()}`,
     appId: app.id,
     state: app.manifest.defaultMode === 'windowed' ? 'windowed' : 'maximized',
+    minimizedOrder: null,
     titleKey: app.labelKey,
     x: 48 + (index % 4) * 36,
     y: 54 + (index % 3) * 32,
@@ -415,6 +481,7 @@ export function DesktopRoute() {
   const [activityLog, setActivityLog] = useState<string[]>([])
   const [isSystemSidebarOpen, setIsSystemSidebarOpen] = useState(false)
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
+  const nextMinimizedOrderRef = useRef(1)
   const [runtimeContainer, setRuntimeContainer] = useState(() => {
     return (
       (window.localStorage.getItem(runtimeStorageKey) as
@@ -590,6 +657,7 @@ export function DesktopRoute() {
                   app.manifest.defaultMode === 'windowed'
                     ? 'windowed'
                     : 'maximized',
+                minimizedOrder: null,
                 zIndex: prev.length + 10,
               }
             : { ...windowItem, zIndex: 10 + index },
@@ -666,10 +734,12 @@ export function DesktopRoute() {
       }),
     )
 
+    const minimizedOrder = nextMinimizedOrderRef.current++
+
     setWindows((prev) =>
       prev.map((windowItem) =>
         windowItem.id === windowId
-          ? { ...windowItem, state: 'minimized' }
+          ? { ...windowItem, state: 'minimized', minimizedOrder }
           : windowItem,
       ),
     )
@@ -929,13 +999,30 @@ export function DesktopRoute() {
   const toggleSidebar = () => setIsSystemSidebarOpen((prev) => !prev)
   const closeSidebar = () => setIsSystemSidebarOpen(false)
   const handleReturnDesktop = () => {
-    setWindows((prev) =>
-      prev.map((windowItem) =>
+    setWindows((prev) => {
+      const visibleWindowIds = [...prev]
+        .filter((windowItem) => windowItem.state !== 'minimized')
+        .sort((a, b) => a.zIndex - b.zIndex)
+        .map((windowItem) => windowItem.id)
+      const minimizedOrderMap = new Map(
+        visibleWindowIds.map((windowId, index) => [
+          windowId,
+          nextMinimizedOrderRef.current + index,
+        ]),
+      )
+
+      nextMinimizedOrderRef.current += visibleWindowIds.length
+
+      return prev.map((windowItem) =>
         windowItem.state === 'minimized'
           ? windowItem
-          : { ...windowItem, state: 'minimized' },
-      ),
-    )
+          : {
+              ...windowItem,
+              state: 'minimized',
+              minimizedOrder: minimizedOrderMap.get(windowItem.id) ?? null,
+            },
+      )
+    })
     closeSidebar()
   }
   const handleSelectSidebarApp = (appId: string) => {
@@ -945,6 +1032,11 @@ export function DesktopRoute() {
   const handleCycleLocale = () => setLocale(nextSupportedLocale(locale))
   const handleToggleTheme = () =>
     setThemeMode(themeMode === 'light' ? 'dark' : 'light')
+  const systemSidebarModel = createSystemSidebarDataModel(
+    apps,
+    windows,
+    activeMobileApp?.id,
+  )
 
   return (
     <main className="relative min-h-dvh overflow-hidden">
@@ -954,9 +1046,7 @@ export function DesktopRoute() {
           {!isLoading && !error && layoutState ? (
             <>
               <SystemSidebar
-                apps={apps}
                 connectionState={connectionState}
-                currentAppId={activeMobileApp?.id}
                 deadZone={resolvedDeadZone}
                 onClose={closeSidebar}
                 onOpenApp={handleSelectSidebarApp}
@@ -965,7 +1055,7 @@ export function DesktopRoute() {
                 runtimeContainer={runtimeContainer}
                 safeAreaTop={safeArea.top}
                 safeAreaBottom={safeArea.bottom}
-                windows={windows}
+                uiModel={systemSidebarModel}
               />
               <StatusBar
                 activeApp={activeMobileApp}

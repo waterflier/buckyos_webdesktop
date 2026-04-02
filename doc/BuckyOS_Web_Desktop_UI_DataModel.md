@@ -103,6 +103,7 @@ export interface WindowRecord {
   id: string;
   appId: string;
   state: WindowState;
+  minimizedOrder: number | null;
   titleKey: string;
   x: number;
   y: number;
@@ -116,8 +117,36 @@ Notes:
 
 - `AppDefinition.manifest` is the UI-side contract used to resolve open behavior.
 - `WindowRecord` is ephemeral runtime state and is not currently persisted.
+- `minimizedOrder` is an explicit UI ordering field used by the sidebar switcher.
 
-### 2.3 Data Fetch Model
+### 2.3 Sidebar UI Model
+
+```ts
+export interface SystemSidebarAppItem {
+  appId: string;
+  iconKey: string;
+  labelKey: string;
+}
+
+export interface SystemSidebarSwitchAppItem extends SystemSidebarAppItem {
+  minimizedOrder: number;
+}
+
+export interface SystemSidebarDataModel {
+  currentAppId?: string;
+  runningAppCount: number;
+  switchApps: SystemSidebarSwitchAppItem[];
+  systemApps: SystemSidebarAppItem[];
+}
+```
+
+Notes:
+
+- `switchApps` contains only minimized, launcher-scope apps.
+- `switchApps` is sorted ascending by `minimizedOrder`, so the list reads top-to-bottom in minimize sequence.
+- `systemApps` is a fixed utility group for always-available shell entries such as Settings and Diagnostics.
+
+### 2.4 Data Fetch Model
 
 ```ts
 export type MockScenario = 'normal' | 'empty' | 'error';
@@ -270,6 +299,7 @@ Applied views:
 | `WidgetItem.widgetType` | Frozen | Shared widget rendering contract. |
 | `WidgetItem.config` | Extensible | Widget-specific configuration can evolve. |
 | `AppDefinition.manifest` | Extensible | Window feature flags may expand. |
+| `WindowRecord.minimizedOrder` | Volatile | Sidebar-only ordering metadata for minimized apps. |
 | `WindowRecord.x/y/width/height` | Volatile | Runtime-only state; not yet persisted. |
 | `DesktopPayload.overview` | Volatile | Presentational shell metadata. |
 

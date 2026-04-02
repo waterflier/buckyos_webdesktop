@@ -41,7 +41,17 @@ export function TierBadge({ tier }: { tier: AppDefinition['tier'] }) {
   )
 }
 
-export function AppIcon({ iconKey }: { iconKey: string }) {
+export function AppIcon({
+  iconKey,
+  className,
+}: {
+  iconKey: string
+  className?: string
+}) {
   const Icon = iconMap[iconKey as keyof typeof iconMap] ?? LayoutGrid
-  return <Icon className="relative z-10 size-7 text-white sm:size-8" />
+  return (
+    <Icon
+      className={clsx('relative z-10 size-7 text-white sm:size-8', className)}
+    />
+  )
 }

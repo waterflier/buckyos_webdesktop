@@ -102,6 +102,23 @@ export interface DataState<T> {
   error: string | null
 }
 
+export interface SystemSidebarAppItem {
+  appId: string
+  iconKey: string
+  labelKey: string
+}
+
+export interface SystemSidebarSwitchAppItem extends SystemSidebarAppItem {
+  minimizedOrder: number
+}
+
+export interface SystemSidebarDataModel {
+  currentAppId?: string
+  runningAppCount: number
+  switchApps: SystemSidebarSwitchAppItem[]
+  systemApps: SystemSidebarAppItem[]
+}
+
 export const systemPreferencesInputSchema = z.object({
   locale: z.enum(supportedLocales),
   theme: z.enum(['light', 'dark']),
@@ -128,6 +145,7 @@ export interface WindowRecord {
   id: string
   appId: string
   state: WindowState
+  minimizedOrder: number | null
   titleKey: string
   x: number
   y: number
