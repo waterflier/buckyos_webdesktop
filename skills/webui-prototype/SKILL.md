@@ -60,7 +60,6 @@ Do NOT use this skill when:
 | Routing | **React Router DOM v7** |
 | State Management | React hooks + Context API |
 | Forms & Input Validation | **react-hook-form** + **Zod** |
-| Fonts | **Space Grotesk** (headings), **Work Sans** (body) |
 | i18n | BuckyOS custom i18n (`useI18n()` hook, `I18nProvider`) |
 
 # 阶段一：Mock-first Prototype 开发
