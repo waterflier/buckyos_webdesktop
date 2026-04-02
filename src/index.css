@@ -109,7 +109,7 @@ select {
     transform 180ms var(--cp-ease-emphasis);
 }
 
-:where(button, [role='button'], input, textarea, select, a):focus-visible {
+:where(button, [role='button'], a):focus-visible {
   outline: none;
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--cp-surface) 90%, transparent),

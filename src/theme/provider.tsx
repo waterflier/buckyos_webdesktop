@@ -39,6 +39,21 @@ export function PrototypeThemeProvider({ children }: PropsWithChildren) {
     const textPrimary = themeMode === 'light' ? '#3a3553' : '#f2effa'
     const textSecondary = themeMode === 'light' ? '#726c89' : '#c2bbd6'
     const divider = themeMode === 'light' ? 'rgba(117, 109, 148, 0.24)' : 'rgba(165, 157, 195, 0.24)'
+    const primaryButton = themeMode === 'light'
+      ? {
+          background: 'oklch(0.58 0.108 258)',
+          hoverBackground: 'oklch(0.54 0.118 258)',
+          activeBackground: 'oklch(0.51 0.112 258)',
+          text: 'oklch(0.985 0.006 286)',
+          outlineHover: 'color-mix(in srgb, var(--cp-accent) 12%, var(--cp-surface))',
+        }
+      : {
+          background: 'oklch(0.72 0.082 258)',
+          hoverBackground: 'oklch(0.75 0.086 258)',
+          activeBackground: 'oklch(0.68 0.078 258)',
+          text: 'oklch(0.24 0.02 272)',
+          outlineHover: 'color-mix(in srgb, var(--cp-accent) 16%, var(--cp-surface))',
+        }
 
     return createTheme({
       palette: {
@@ -86,25 +101,38 @@ export function PrototypeThemeProvider({ children }: PropsWithChildren) {
           styleOverrides: {
             root: {
               minHeight: 44,
-              borderRadius: 999,
+              borderRadius: 16,
               paddingInline: 18,
               boxShadow:
-                '0 16px 34px color-mix(in srgb, var(--cp-accent) 20%, transparent)',
+                '0 14px 30px color-mix(in srgb, var(--cp-accent) 16%, transparent)',
               transition:
                 'transform 180ms var(--cp-ease-emphasis), background-color 180ms var(--cp-ease-smooth), border-color 180ms var(--cp-ease-smooth), box-shadow 180ms var(--cp-ease-smooth)',
               '&:hover': {
                 transform: 'translateY(-1px)',
                 boxShadow:
-                  '0 20px 40px color-mix(in srgb, var(--cp-accent) 26%, transparent)',
+                  '0 18px 36px color-mix(in srgb, var(--cp-accent) 22%, transparent)',
               },
               '&:active': {
                 transform: 'translateY(0)',
               },
+              '&.Mui-disabled': {
+                boxShadow: 'none',
+                transform: 'none',
+              },
             },
             contained: {
-              background:
-                'linear-gradient(135deg, color-mix(in srgb, var(--cp-accent) 92%, white), color-mix(in srgb, var(--cp-accent-soft) 68%, var(--cp-accent)))',
-              color: 'white',
+              background: primaryButton.background,
+              color: primaryButton.text,
+              '&:hover': {
+                background: primaryButton.hoverBackground,
+              },
+              '&:active': {
+                background: primaryButton.activeBackground,
+              },
+              '&.Mui-disabled': {
+                background: 'color-mix(in srgb, var(--cp-text) 10%, var(--cp-surface-2))',
+                color: 'color-mix(in srgb, var(--cp-muted) 82%, transparent)',
+              },
             },
             outlined: {
               borderColor: 'var(--cp-border)',
@@ -113,8 +141,7 @@ export function PrototypeThemeProvider({ children }: PropsWithChildren) {
               boxShadow: 'none',
               '&:hover': {
                 borderColor: 'color-mix(in srgb, var(--cp-accent) 28%, var(--cp-border))',
-                backgroundColor:
-                  'color-mix(in srgb, var(--cp-accent-soft) 10%, var(--cp-surface))',
+                backgroundColor: primaryButton.outlineHover,
                 boxShadow: 'none',
               },
             },
@@ -130,6 +157,12 @@ export function PrototypeThemeProvider({ children }: PropsWithChildren) {
             sizeSmall: {
               minHeight: 36,
               paddingInline: 14,
+              borderRadius: 12,
+            },
+            sizeLarge: {
+              minHeight: 50,
+              paddingInline: 22,
+              borderRadius: 18,
             },
           },
         },
@@ -175,7 +208,6 @@ export function PrototypeThemeProvider({ children }: PropsWithChildren) {
               },
               '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
                 borderColor: 'var(--cp-accent)',
-                boxShadow: '0 0 0 4px var(--cp-focus-ring)',
               },
             },
             input: {
