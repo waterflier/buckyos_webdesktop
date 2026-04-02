@@ -71,6 +71,48 @@ import { useThemeMode } from '../theme/provider'
 
 const runtimeStorageKey = 'buckyos.prototype.runtime.v1'
 
+/**
+ * Reads env(safe-area-inset-*) values for immersive fullscreen on mobile.
+ * Requires viewport-fit=cover on the viewport meta tag.
+ */
+function useSafeAreaInsets() {
+  const [insets, setInsets] = useState({ top: 0, bottom: 0, left: 0, right: 0 })
+
+  useEffect(() => {
+    const probe = document.createElement('div')
+    probe.style.cssText =
+      'position:fixed;top:0;left:0;right:0;bottom:0;' +
+      'padding-top:env(safe-area-inset-top,0px);' +
+      'padding-bottom:env(safe-area-inset-bottom,0px);' +
+      'padding-left:env(safe-area-inset-left,0px);' +
+      'padding-right:env(safe-area-inset-right,0px);' +
+      'pointer-events:none;visibility:hidden;z-index:-9999;'
+    document.body.appendChild(probe)
+
+    const update = () => {
+      const cs = getComputedStyle(probe)
+      setInsets({
+        top: parseFloat(cs.paddingTop) || 0,
+        bottom: parseFloat(cs.paddingBottom) || 0,
+        left: parseFloat(cs.paddingLeft) || 0,
+        right: parseFloat(cs.paddingRight) || 0,
+      })
+    }
+
+    update()
+    window.addEventListener('resize', update)
+    window.addEventListener('orientationchange', update)
+
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('orientationchange', update)
+      document.body.removeChild(probe)
+    }
+  }, [])
+
+  return insets
+}
+
 const gridSpec = {
   desktop: { cols: 8, rows: 5, rowHeight: 112 },
   mobile: { cols: 4, rows: 6, rowHeight: 96 },
@@ -471,8 +513,11 @@ export function DesktopRoute() {
     left: 0,
     right: 0,
   }
+  const safeArea = useSafeAreaInsets()
   const workspaceInnerWidth = Math.max(
-    workspaceSize.width - resolvedDeadZone.left - resolvedDeadZone.right,
+    workspaceSize.width
+      - resolvedDeadZone.left - resolvedDeadZone.right
+      - safeArea.left - safeArea.right,
     320,
   )
 
@@ -832,15 +877,17 @@ export function DesktopRoute() {
       ? appById(apps, topMobileWindow.appId)
       : undefined
   const shellBarHeight = shellStatusBarHeight(formFactor, activeMobileApp)
-  const desktopWorkspaceTopInset = resolvedDeadZone.top + shellBarHeight
+  const desktopWorkspaceTopInset = safeArea.top + resolvedDeadZone.top + shellBarHeight
   const mobileSheetTopInset =
     activeMobileApp && mobileStatusBarMode(activeMobileApp) === 'standard'
-      ? resolvedDeadZone.top + shellBarHeight
+      ? safeArea.top + resolvedDeadZone.top + shellBarHeight
       : 0
   const workspaceTopPadding =
-    formFactor === 'mobile' && topMobileWindow ? resolvedDeadZone.top : desktopWorkspaceTopInset
+    formFactor === 'mobile' && topMobileWindow
+      ? safeArea.top + resolvedDeadZone.top
+      : desktopWorkspaceTopInset
   const workspaceInnerHeight = Math.max(
-    workspaceSize.height - workspaceTopPadding - resolvedDeadZone.bottom,
+    workspaceSize.height - workspaceTopPadding - resolvedDeadZone.bottom - safeArea.bottom,
     360,
   )
   const trayState = useMemo<StatusTrayState>(
@@ -879,10 +926,10 @@ export function DesktopRoute() {
     setThemeMode(themeMode === 'light' ? 'dark' : 'light')
 
   return (
-    <main className="relative min-h-screen overflow-hidden">
+    <main className="relative min-h-dvh overflow-hidden">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.42),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.18),transparent_28%)]" />
-      <section className="relative min-h-screen overflow-hidden">
-        <div className="relative min-h-screen overflow-hidden" ref={workspaceRef}>
+      <section className="relative min-h-dvh overflow-hidden">
+        <div className="relative min-h-dvh overflow-hidden" ref={workspaceRef}>
           {!isLoading && !error && layoutState ? (
             <>
               <SystemSidebar
@@ -895,6 +942,8 @@ export function DesktopRoute() {
                 onReturnDesktop={handleReturnDesktop}
                 open={isSystemSidebarOpen}
                 runtimeContainer={runtimeContainer}
+                safeAreaTop={safeArea.top}
+                safeAreaBottom={safeArea.bottom}
                 windows={windows}
               />
               <StatusBar
@@ -902,6 +951,7 @@ export function DesktopRoute() {
                 connectionState={connectionState}
                 deadZone={resolvedDeadZone}
                 formFactor={formFactor}
+                safeAreaTop={safeArea.top}
                 onCycleLocale={handleCycleLocale}
                 onMinimizeWindow={
                   isMobile && topMobileWindow
@@ -919,9 +969,9 @@ export function DesktopRoute() {
                 className="relative"
                 style={{
                   paddingTop: workspaceTopPadding,
-                  paddingBottom: resolvedDeadZone.bottom,
-                  paddingLeft: resolvedDeadZone.left,
-                  paddingRight: resolvedDeadZone.right,
+                  paddingBottom: resolvedDeadZone.bottom + safeArea.bottom,
+                  paddingLeft: resolvedDeadZone.left + safeArea.left,
+                  paddingRight: resolvedDeadZone.right + safeArea.right,
                 }}
               >
                 {layoutState.pages.length === 0 ||
@@ -1012,6 +1062,7 @@ export function DesktopRoute() {
                   onMinimize={minimizeWindow}
                   onSaveSettings={applySettings}
                   runtimeContainer={runtimeContainer}
+                  safeArea={safeArea}
                   themeMode={themeMode}
                   locale={locale}
                   windows={visibleWindows}
@@ -1026,6 +1077,7 @@ export function DesktopRoute() {
                 <MobileWindowSheet
                   app={appById(apps, topMobileWindow.appId)}
                   deadZone={resolvedDeadZone}
+                  safeAreaBottom={safeArea.bottom}
                   layoutState={layoutState}
                   locale={locale}
                   onSaveSettings={applySettings}
@@ -1509,6 +1561,7 @@ function DesktopWindowLayer({
   onMinimize,
   onSaveSettings,
   runtimeContainer,
+  safeArea = { top: 0, bottom: 0, left: 0, right: 0 },
   themeMode,
   topInset,
   windows,
@@ -1525,6 +1578,7 @@ function DesktopWindowLayer({
   onMinimize: (windowId: string) => void
   onSaveSettings: (values: SystemPreferencesInput) => void
   runtimeContainer: string
+  safeArea?: { top: number; bottom: number; left: number; right: number }
   themeMode: ThemeMode
   topInset: number
   windows: WindowRecord[]
@@ -1614,7 +1668,7 @@ function DesktopWindowLayer({
         const minWidth = 420
         const minHeight = 280
         const maxWidth = Math.max(520, workspaceSize.width - 48)
-        const maxHeight = Math.max(320, workspaceSize.height - topInset - deadZone.bottom - 24)
+        const maxHeight = Math.max(320, workspaceSize.height - topInset - safeArea.bottom - deadZone.bottom - 24)
         const nextWidth = Math.min(
           Math.max(
             minWidth,
@@ -1654,7 +1708,7 @@ function DesktopWindowLayer({
         const maxX = Math.max(24, layerRect.width - measured.width - 24)
         const maxY = Math.max(
           topInset + 8,
-          layerRect.height - measured.height - deadZone.bottom - 8,
+          layerRect.height - measured.height - safeArea.bottom - deadZone.bottom - 8,
         )
 
         const nextX = Math.min(
@@ -1693,7 +1747,7 @@ function DesktopWindowLayer({
       window.removeEventListener('pointerup', handleUp)
       window.removeEventListener('pointercancel', handleUp)
     }
-  }, [deadZone.bottom, onFocus, topInset, windows, workspaceSize.height, workspaceSize.width])
+  }, [deadZone.bottom, onFocus, safeArea.bottom, topInset, windows, workspaceSize.height, workspaceSize.width])
 
   useEffect(() => {
     const sync = () => {
@@ -1749,13 +1803,13 @@ function DesktopWindowLayer({
             )}
             style={{
               zIndex: windowItem.zIndex,
-              left: maximized ? deadZone.left + 12 : anchored.x,
+              left: maximized ? safeArea.left + deadZone.left + 12 : anchored.x,
               top: maximized ? topInset + 12 : anchored.y,
               width: maximized
-                ? workspaceSize.width - deadZone.left - deadZone.right - 24
+                ? workspaceSize.width - safeArea.left - deadZone.left - safeArea.right - deadZone.right - 24
                 : measured.width,
               height: maximized
-                ? workspaceSize.height - topInset - deadZone.bottom - 24
+                ? workspaceSize.height - topInset - safeArea.bottom - deadZone.bottom - 24
                 : measured.height,
               display: windowItem.state === 'minimized' ? 'none' : 'block',
               transform: isFront ? 'translateY(0)' : 'translateY(4px)',
@@ -1856,6 +1910,7 @@ function MobileWindowSheet({
   locale,
   onSaveSettings,
   runtimeContainer,
+  safeAreaBottom = 0,
   themeMode,
   topInset,
 }: {
@@ -1866,6 +1921,7 @@ function MobileWindowSheet({
   locale: string
   onSaveSettings: (values: SystemPreferencesInput) => void
   runtimeContainer: string
+  safeAreaBottom?: number
   themeMode: ThemeMode
   topInset: number
 }) {
@@ -1878,7 +1934,7 @@ function MobileWindowSheet({
       <div
         className="flex h-full min-h-0 flex-col"
         style={{
-          paddingBottom: deadZone.bottom,
+          paddingBottom: safeAreaBottom + deadZone.bottom,
         }}
       >
         <div

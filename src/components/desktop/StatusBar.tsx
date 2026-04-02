@@ -107,6 +107,7 @@ export function StatusBar({
   onOpenSettings,
   onOpenSidebar,
   onToggleTheme,
+  safeAreaTop = 0,
   themeMode,
   trayState,
 }: {
@@ -120,6 +121,7 @@ export function StatusBar({
   onOpenSettings: () => void
   onOpenSidebar: () => void
   onToggleTheme: () => void
+  safeAreaTop?: number
   themeMode: ThemeMode
   trayState: StatusTrayState
 }) {
@@ -129,7 +131,7 @@ export function StatusBar({
   const activeMode =
     formFactor === 'mobile' && activeApp ? mobileStatusBarMode(activeApp) : null
   const barHeight = shellStatusBarHeight(formFactor, activeApp)
-  const totalHeight = deadZone.top + barHeight
+  const totalHeight = safeAreaTop + deadZone.top + barHeight
   const isDesktop = formFactor === 'desktop'
   const isMobile = !isDesktop
   const showSurface = isDesktop || activeMode === 'standard'
@@ -173,7 +175,7 @@ export function StatusBar({
         className="relative flex items-center justify-between gap-3 px-3 text-[color:var(--cp-text)] sm:px-6"
         style={{
           height: totalHeight,
-          paddingTop: deadZone.top,
+          paddingTop: safeAreaTop + deadZone.top,
         }}
       >
         {activeMode === 'standard' && activeApp ? (

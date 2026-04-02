@@ -28,6 +28,8 @@ export function SystemSidebar({
   onReturnDesktop,
   open,
   runtimeContainer,
+  safeAreaTop = 0,
+  safeAreaBottom = 0,
   windows,
 }: {
   apps: AppDefinition[]
@@ -39,6 +41,8 @@ export function SystemSidebar({
   onReturnDesktop: () => void
   open: boolean
   runtimeContainer: string
+  safeAreaTop?: number
+  safeAreaBottom?: number
   windows: WindowRecord[]
 }) {
   const { t } = useI18n()
@@ -81,8 +85,8 @@ export function SystemSidebar({
         <div
           className="desktop-scrollbar flex h-full flex-col gap-5 overflow-y-auto px-4 pb-5 pt-4 sm:px-5"
           style={{
-            paddingTop: deadZone.top + 14,
-            paddingBottom: deadZone.bottom + 18,
+            paddingTop: safeAreaTop + deadZone.top + 14,
+            paddingBottom: safeAreaBottom + deadZone.bottom + 18,
           }}
         >
           <div className="flex items-center justify-between gap-3">

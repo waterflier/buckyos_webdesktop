@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "Bash(export PATH=\"/Users/liuzhicong/project/buckyos_webdesktop/node_modules/.bin:$PATH\")",
+      "Bash(tsc --noEmit)",
+      "Read(//usr/local/**)",
+      "Read(//opt/**)",
+      "Read(//Users/liuzhicong/.local/share/fnm/**)",
+      "Read(//Users/liuzhicong/.fnm/**)",
+      "Read(//Users/liuzhicong/.volta/bin/**)",
+      "Bash(export PATH=\"/opt/homebrew/Cellar/node/23.10.0_1/bin:/Users/liuzhicong/project/buckyos_webdesktop/node_modules/.bin:$PATH\")"
+    ]
+  }
+}
