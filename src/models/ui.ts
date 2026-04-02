@@ -17,6 +17,7 @@ export type RuntimeContainer = 'browser' | 'desktop-app' | 'mobile-app'
 export type FormFactor = 'desktop' | 'mobile'
 export type MockScenario = 'normal' | 'empty' | 'error'
 export type DesktopItemType = 'app' | 'widget'
+export type DesktopWallpaperMode = 'panorama' | 'tile' | 'infinite'
 export type WidgetType = string
 export type DisplayMode = 'windowed' | 'maximized' | 'fullscreen'
 export type WindowState = 'windowed' | 'maximized' | 'minimized'
@@ -65,6 +66,12 @@ export interface LayoutState {
   pages: DesktopPageState[]
 }
 
+export interface DesktopWallpaper {
+  mode: DesktopWallpaperMode
+  imageUrl?: string
+  tileSize?: number
+}
+
 export interface WindowManifest {
   defaultMode: DisplayMode
   allowMinimize: boolean
@@ -92,6 +99,7 @@ export interface DesktopPayload {
     titleKey: string
     subtitleKey: string
   }
+  wallpaper: DesktopWallpaper
   apps: AppDefinition[]
   layout: LayoutState
 }

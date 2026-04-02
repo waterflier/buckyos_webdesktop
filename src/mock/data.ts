@@ -1,6 +1,7 @@
 import type {
   AppDefinition,
   DesktopPayload,
+  DesktopWallpaper,
   DeadZone,
   FormFactor,
   LayoutItem,
@@ -13,6 +14,10 @@ export const defaultDeadZone: DeadZone = {
   bottom: 8,
   left: 5,
   right: 5,
+}
+
+const defaultWallpaper: DesktopWallpaper = {
+  mode: 'infinite',
 }
 
 const appCatalog: AppDefinition[] = [
@@ -357,6 +362,7 @@ export function buildDesktopPayload(
         titleKey: 'shell.title',
         subtitleKey: 'shell.subtitle',
       },
+      wallpaper: defaultWallpaper,
       apps: appCatalog,
       layout: {
         version: 1,
@@ -372,6 +378,7 @@ export function buildDesktopPayload(
       titleKey: 'shell.title',
       subtitleKey: 'shell.subtitle',
     },
+    wallpaper: defaultWallpaper,
     apps: appCatalog,
     layout: createLayout(
       formFactor,

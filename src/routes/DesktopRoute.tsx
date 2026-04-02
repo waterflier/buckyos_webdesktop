@@ -34,6 +34,7 @@ import {
 import {
   appIconSurfaceStyle,
 } from '../components/desktop/DesktopVisualTokens'
+import { DesktopBackground } from '../components/desktop/DesktopBackground'
 import { StatusBar } from '../components/desktop/StatusBar'
 import { SystemSidebar } from '../components/desktop/SystemSidebar'
 import { DesktopWidgetRenderer } from '../components/desktop/widgets/WidgetRenderer'
@@ -144,6 +145,14 @@ function useConnectionState(runtimeContainer: string): ConnectionState {
 function nextSupportedLocale(locale: SupportedLocale) {
   const currentIndex = supportedLocales.indexOf(locale)
   return supportedLocales[(currentIndex + 1) % supportedLocales.length]
+}
+
+function normalizeViewportProgress(progress: number, pageCount: number) {
+  if (!Number.isFinite(progress) || pageCount <= 1) {
+    return 0
+  }
+
+  return Math.min(Math.max(progress, 0), 1)
 }
 
 function readJson<T>(key: string) {
@@ -436,6 +445,7 @@ export function DesktopRoute() {
   const [activityLog, setActivityLog] = useState<string[]>([])
   const [isSystemSidebarOpen, setIsSystemSidebarOpen] = useState(false)
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
+  const [viewportProgress, setViewportProgress] = useState(0)
   const nextMinimizedOrderRef = useRef(1)
   const [runtimeContainer, setRuntimeContainer] = useState(() => {
     return (
@@ -480,6 +490,7 @@ export function DesktopRoute() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     resetViewportState()
     setIsSystemSidebarOpen(false)
+    setViewportProgress(0)
   }, [formFactor])
 
   useEffect(() => {
@@ -990,9 +1001,14 @@ export function DesktopRoute() {
   )
 
   return (
-    <main className="relative min-h-dvh overflow-hidden">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.42),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.18),transparent_28%)]" />
-      <section className="relative min-h-dvh overflow-hidden">
+    <main className="relative isolate min-h-dvh overflow-hidden bg-[color:var(--cp-bg)]">
+      <DesktopBackground
+        wallpaper={data?.wallpaper ?? { mode: 'infinite' }}
+        pageCount={layoutState?.pages.length ?? data?.layout.pages.length ?? 1}
+        viewportProgress={viewportProgress}
+      />
+
+      <section className="relative z-10 min-h-dvh overflow-hidden">
         <div className="relative min-h-dvh overflow-hidden" ref={workspaceRef}>
           {!isLoading && !error && layoutState ? (
             <>
@@ -1046,6 +1062,21 @@ export function DesktopRoute() {
                     pagination={{ clickable: true }}
                     className="h-full"
                     style={{ height: workspaceInnerHeight }}
+                    onSwiper={(swiper) =>
+                      setViewportProgress(
+                        normalizeViewportProgress(swiper.progress, layoutState.pages.length),
+                      )
+                    }
+                    onProgress={(swiper) =>
+                      setViewportProgress(
+                        normalizeViewportProgress(swiper.progress, layoutState.pages.length),
+                      )
+                    }
+                    onSlideChange={(swiper) =>
+                      setViewportProgress(
+                        normalizeViewportProgress(swiper.progress, layoutState.pages.length),
+                      )
+                    }
                   >
                     {layoutState.pages.map((page) => (
                       <SwiperSlide key={page.id} className="h-full">
