@@ -107,3 +107,20 @@ test('empty and error states render', async ({ page }) => {
   await page.goto('/?scenario=error')
   await expect(page.getByText('Mock data failed')).toBeVisible()
 })
+
+test('demos app renders common controls', async ({ page }) => {
+  await page.goto('/?scenario=normal')
+
+  await page.getByTestId('desktop-app-demos').click()
+  await expect(page.getByTestId('window-demos')).toBeVisible()
+  await expect(page.getByText('Control gallery', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Quick menu' }).click()
+  await expect(page.getByRole('menuitem', { name: 'Pin to launcher' })).toBeVisible()
+  await page.getByRole('menuitem', { name: 'Pin to launcher' }).click()
+
+  await page.getByRole('textbox', { name: 'Search query' }).fill('State matrix')
+  await expect(page.getByRole('textbox', { name: 'Search query' })).toHaveValue('State matrix')
+  await page.getByRole('tab', { name: 'Status' }).click()
+  await expect(page.getByText('Control coverage')).toBeVisible()
+})
