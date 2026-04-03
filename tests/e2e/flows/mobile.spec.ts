@@ -114,3 +114,35 @@ test('mobile demos exposes dialog trigger and opens centered dialog', async ({
   expect(Math.abs(dialogCenterX - viewportCenterX)).toBeLessThan(24)
   expect(Math.abs(dialogCenterY - viewportCenterY)).toBeLessThan(40)
 })
+
+test('mobile status tray tips stays within viewport and dismisses on blur', async ({
+  page,
+}) => {
+  await page.goto('/?scenario=normal')
+
+  const tipsButton = page.getByTestId('status-tray-tips-button')
+  await expect(tipsButton).toBeVisible()
+  await tipsButton.click({ force: true })
+
+  const tipsPanel = page.getByTestId('status-tips-panel')
+  await expect(tipsPanel).toBeVisible()
+  await expect(page.getByTestId('status-tip-card-diagnostics-export')).toBeVisible()
+
+  const panelBox = await tipsPanel.boundingBox()
+  const viewport = page.viewportSize()
+  expect(panelBox).not.toBeNull()
+  expect(viewport).not.toBeNull()
+  expect(panelBox?.x ?? 0).toBeGreaterThanOrEqual(0)
+  expect((panelBox?.x ?? 0) + (panelBox?.width ?? 0)).toBeLessThanOrEqual(
+    viewport?.width ?? 0,
+  )
+  expect((panelBox?.y ?? 0) + (panelBox?.height ?? 0)).toBeLessThanOrEqual(
+    viewport?.height ?? 0,
+  )
+
+  await page.locator('body').click({
+    force: true,
+    position: { x: 12, y: viewport ? viewport.height - 12 : 780 },
+  })
+  await expect(tipsPanel).toHaveCount(0)
+})

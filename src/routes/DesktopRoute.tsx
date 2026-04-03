@@ -54,6 +54,7 @@ import {
   mobileStatusBarMode,
   shellStatusBarHeight,
   type ConnectionState,
+  type StatusTip,
   type StatusTrayState,
 } from '../components/desktop/shell'
 import { useI18n } from '../i18n/provider'
@@ -1169,18 +1170,96 @@ export function DesktopRoute() {
     360,
   )
   const trayState = useMemo<StatusTrayState>(
-    () => ({
-      backupActive: windows.some(
-        (windowItem) =>
-          windowItem.appId === 'files' && windowItem.state !== 'minimized',
-      ),
-      messageCount: Math.min(
-        windows.filter((windowItem) => windowItem.state !== 'minimized').length,
-        3,
-      ),
-      notificationCount: Math.min(activityLog.length, 9),
-    }),
-    [activityLog.length, windows],
+    () => {
+      const statusTips: StatusTip[] = [
+        {
+          id: 'recent-shell-action',
+          tone: 'success',
+          taskLabel: t('tips.task.shell'),
+          title: t('tips.card.recent.title'),
+          body: activityLog[0] ?? t('tips.card.recent.body'),
+          statusLabel: t('tips.status.completed'),
+          timeLabel: t('tips.time.justNow'),
+        },
+        {
+          id: 'mobile-touch-audit',
+          tone: 'error',
+          taskLabel: t('tips.task.mobile'),
+          title: t('tips.card.touch.title'),
+          body: t('tips.card.touch.body'),
+          statusLabel: t('tips.status.failed'),
+          timeLabel: t('tips.time.twoMinutes'),
+        },
+        {
+          id: 'diagnostics-export',
+          tone: 'progress',
+          taskLabel: t('tips.task.report'),
+          title: t('tips.card.report.title'),
+          body: t('tips.card.report.body'),
+          statusLabel: t('tips.status.running'),
+          timeLabel: t('tips.time.queue'),
+        },
+        {
+          id: 'runtime-cache-warmed',
+          tone: 'success',
+          taskLabel: t('tips.task.runtime'),
+          title: t('tips.card.cache.title'),
+          body: t('tips.card.cache.body'),
+          statusLabel: t('tips.status.completed'),
+          timeLabel: '5m',
+        },
+        {
+          id: 'notes-sync-retry',
+          tone: 'error',
+          taskLabel: t('tips.task.sync'),
+          title: t('tips.card.sync.title'),
+          body: t('tips.card.sync.body'),
+          statusLabel: t('tips.status.failed'),
+          timeLabel: '9m',
+        },
+        {
+          id: 'docs-index-refresh',
+          tone: 'progress',
+          taskLabel: t('tips.task.index'),
+          title: t('tips.card.index.title'),
+          body: t('tips.card.index.body'),
+          statusLabel: t('tips.status.running'),
+          timeLabel: '12m',
+        },
+        {
+          id: 'launcher-metrics-pushed',
+          tone: 'success',
+          taskLabel: t('tips.task.metrics'),
+          title: t('tips.card.metrics.title'),
+          body: t('tips.card.metrics.body'),
+          statusLabel: t('tips.status.completed'),
+          timeLabel: '18m',
+        },
+        {
+          id: 'widget-layout-reflow',
+          tone: 'progress',
+          taskLabel: t('tips.task.layout'),
+          title: t('tips.card.layout.title'),
+          body: t('tips.card.layout.body'),
+          statusLabel: t('tips.status.running'),
+          timeLabel: '24m',
+        },
+      ]
+
+      return {
+        backupActive: windows.some(
+          (windowItem) =>
+            windowItem.appId === 'files' && windowItem.state !== 'minimized',
+        ),
+        messageCount: Math.min(
+          windows.filter((windowItem) => windowItem.state !== 'minimized').length,
+          3,
+        ),
+        notificationCount: Math.min(statusTips.length, 9),
+        tips: statusTips,
+      }
+    },
+    [activityLog, t, windows],
   )
 
   const toggleSidebar = () => setIsSystemSidebarOpen((prev) => !prev)

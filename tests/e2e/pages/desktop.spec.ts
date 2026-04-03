@@ -239,6 +239,31 @@ test('demos app renders common controls', async ({ page }) => {
   await expect(page.getByText('Control coverage')).toBeVisible()
 })
 
+test('status tray tips opens from bell and closes on outside click', async ({ page }) => {
+  await page.goto('/?scenario=normal')
+
+  const tipsButton = page.getByTestId('status-tray-tips-button')
+  await expect(tipsButton).toBeVisible()
+  await tipsButton.click()
+
+  const tipsPanel = page.getByTestId('status-tips-panel')
+  await expect(tipsPanel).toBeVisible()
+  await expect(page.getByTestId('status-tip-card-recent-shell-action')).toBeVisible()
+  await expect(page.getByTestId('status-tip-card-mobile-touch-audit')).toBeVisible()
+
+  const panelBox = await tipsPanel.boundingBox()
+  const viewport = page.viewportSize()
+  expect(panelBox).not.toBeNull()
+  expect(viewport).not.toBeNull()
+  expect((panelBox?.x ?? 0) + (panelBox?.width ?? 0)).toBeLessThanOrEqual(
+    (viewport?.width ?? 0) - 8,
+  )
+  expect(panelBox?.x ?? 0).toBeGreaterThanOrEqual(0)
+
+  await page.mouse.click(24, (viewport?.height ?? 0) - 24)
+  await expect(tipsPanel).toHaveCount(0)
+})
+
 test('window modal only blocks its owner window', async ({ page }) => {
   await page.goto('/?scenario=normal')
 
