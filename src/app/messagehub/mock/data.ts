@@ -7,6 +7,7 @@ import { InMemoryConversationMessageReader } from '../conversation/history/data-
 import type {
   MessageDeliveryStatus,
   MessageObject,
+  MsgContent,
 } from '../protocol/msgobj'
 
 /* ── Entities ── */
@@ -455,6 +456,30 @@ const mockMessageSeeds: Record<string, readonly MessageObject[]> = {
       createdAtMs: Date.now() - 15 * 60_000,
       sessionId: 'session-alice-1',
     }),
+    createChatMessage({
+      id: 'msg-a1-6',
+      from: participantDids.alice,
+      to: [participantDids.you],
+      senderName: 'Alice',
+      content: 'This is the reference image I mentioned.',
+      createdAtMs: Date.now() - 12 * 60_000,
+      sessionId: 'session-alice-1',
+      contentOverride: {
+        format: 'application/octet-stream',
+        content: 'This is the reference image I mentioned.',
+        refs: [
+          {
+            role: 'input',
+            label: 'Museo di Santa Giulia',
+            target: {
+              type: 'data_obj',
+              obj_id: 'obj-wikimedia-image-1',
+              uri_hint: 'https://upload.wikimedia.org/wikipedia/commons/9/95/Museo_di_Santa_Giulia_Coro_delle_Monache_Deposizione_Paolo_da_Caylina_Brescia.jpg',
+            },
+          },
+        ],
+      },
+    }),
   ],
   'session-team-1': [
     createChatMessage({
@@ -568,6 +593,7 @@ function createChatMessage({
   deliveryStatus,
   kind = 'chat',
   sessionId,
+  contentOverride,
 }: {
   id: string
   from: string
@@ -578,13 +604,14 @@ function createChatMessage({
   deliveryStatus?: MessageDeliveryStatus
   kind?: 'chat' | 'group_msg'
   sessionId: string
+  contentOverride?: MsgContent
 }): MessageObject {
   return {
     from,
     to,
     kind,
     created_at_ms: createdAtMs,
-    content: {
+    content: contentOverride ?? {
       format: 'text/plain',
       content,
     },
