@@ -137,6 +137,7 @@ export function DesktopWindowContainer({
   const { t } = useI18n()
   const { app } = uiModel
   const isMaximized = uiModel.state === 'maximized'
+  const hasFullBleedContent = app.manifest.contentPadding === 'none'
   const activeTitleBarMix =
     themeMode === 'light'
       ? {
@@ -252,7 +253,12 @@ export function DesktopWindowContainer({
           </div>
         </div>
 
-        <div className="desktop-scrollbar min-h-0 flex-1 overflow-y-auto p-5">
+        <div
+          className={clsx(
+            'desktop-scrollbar min-h-0 flex-1',
+            hasFullBleedContent ? 'overflow-hidden p-0' : 'overflow-y-auto p-5',
+          )}
+        >
           {children}
         </div>
 

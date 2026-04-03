@@ -1,9 +1,11 @@
 import clsx from 'clsx'
 import {
   BookOpen,
+  Bot,
   Clock3,
   FolderOpen,
   LayoutGrid,
+  MessageSquare,
   Settings,
   SlidersHorizontal,
   StickyNote,
@@ -21,6 +23,8 @@ const iconMap = {
   diagnostics: LayoutGrid,
   demos: SlidersHorizontal,
   docs: BookOpen,
+  codeassistant: Bot,
+  messagehub: MessageSquare,
   clock: Clock3,
   notepad: StickyNote,
 }

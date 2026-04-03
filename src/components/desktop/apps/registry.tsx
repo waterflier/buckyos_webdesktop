@@ -1,8 +1,10 @@
+import { CodeAssistantAppPanel } from './CodeAssistantAppPanel'
 import type { AppDefinition } from '../../../models/ui'
 import { DemosAppPanel } from './DemosAppPanel'
 import { DiagnosticsAppPanel } from './DiagnosticsAppPanel'
 import { FilesAppPanel } from './FilesAppPanel'
 import { MarketAppPanel } from './MarketAppPanel'
+import { MessageHubAppPanel } from './MessageHubAppPanel'
 import { SettingsAppPanel } from './SettingsAppPanel'
 import { StudioAppPanel } from './StudioAppPanel'
 import { UnsupportedAppPanel } from './UnsupportedAppPanel'
@@ -15,6 +17,8 @@ const appLoaders = {
   market: MarketAppPanel,
   diagnostics: DiagnosticsAppPanel,
   demos: DemosAppPanel,
+  codeassistant: CodeAssistantAppPanel,
+  messagehub: MessageHubAppPanel,
 } as const
 
 export function resolveDesktopApps(apps: AppDefinition[]): DesktopAppItem[] {

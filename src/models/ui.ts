@@ -89,6 +89,8 @@ export interface WindowManifest {
   mobileStatusBarMode: MobileStatusBarMode
   titleBarMode: 'system' | 'custom'
   placement: 'inplace' | 'new-container'
+  contentPadding?: 'default' | 'none'
+  mobileRedirectPath?: string
   desktopWindow?: DesktopWindowSizing
 }
 

@@ -20,7 +20,7 @@ import GridLayoutBase, {
   type LayoutItem as GridLayoutItem,
   noCompactor,
 } from 'react-grid-layout'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Pagination } from 'swiper/modules'
 import { Swiper, SwiperSlide } from 'swiper/react'
 import useSWR from 'swr'
@@ -523,6 +523,7 @@ export function DesktopRoute() {
   const { locale, setLocale, t } = useI18n()
   const { themeMode, setThemeMode } = useThemeMode()
   const isMobile = useMediaQuery('(max-width:768px)')
+  const navigate = useNavigate()
   const formFactor: FormFactor = isMobile ? 'mobile' : 'desktop'
   const [searchParams, setSearchParams] = useSearchParams()
   const initialScenario =
@@ -784,6 +785,11 @@ export function DesktopRoute() {
     const app = findDesktopAppById(apps, appId)
 
     if (!app) {
+      return
+    }
+
+    if (isMobile && app.manifest.mobileRedirectPath) {
+      navigate(app.manifest.mobileRedirectPath)
       return
     }
 

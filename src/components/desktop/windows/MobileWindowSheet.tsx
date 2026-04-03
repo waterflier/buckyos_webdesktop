@@ -1,3 +1,4 @@
+import clsx from 'clsx'
 import type {
   LayoutState,
   SystemPreferencesInput,
@@ -37,6 +38,8 @@ export function MobileWindowSheet({
     return null
   }
 
+  const hasFullBleedContent = app.manifest.contentPadding === 'none'
+
   return (
     <div className="absolute inset-0 z-40 overflow-hidden bg-[color:color-mix(in_srgb,var(--cp-bg)_94%,var(--cp-surface))]">
       <WindowDialogProvider
@@ -50,8 +53,15 @@ export function MobileWindowSheet({
           }}
         >
           <div
-            className="desktop-scrollbar min-h-0 flex-1 overflow-y-auto p-4"
-            style={{ paddingTop: topInset > 0 ? topInset + 14 : 14 }}
+            className={clsx(
+              'desktop-scrollbar min-h-0 flex-1',
+              hasFullBleedContent ? 'overflow-hidden p-0' : 'overflow-y-auto p-4',
+            )}
+            style={
+              hasFullBleedContent
+                ? { paddingTop: topInset }
+                : { paddingTop: topInset > 0 ? topInset + 14 : 14 }
+            }
           >
             <AppContentRenderer
               activityLog={activityLog}
