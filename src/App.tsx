@@ -7,11 +7,16 @@ import {
 import { I18nProvider } from './i18n/provider'
 import { PrototypeThemeProvider } from './theme/provider'
 import { DesktopRoute } from './routes/DesktopRoute'
+import { MessageHubRoute } from './routes/MessageHubRoute'
 
 const router = createBrowserRouter([
   {
     path: '/',
     element: <DesktopRoute />,
+  },
+  {
+    path: '/messagehub',
+    element: <MessageHubRoute />,
   },
   {
     path: '*',
