@@ -1,5 +1,5 @@
-import { buildDesktopPayload } from './data'
 import type { DesktopPayload, FormFactor, MockScenario } from '../models/ui'
+import { buildDesktopPayload } from './data'
 
 interface ProviderArgs {
   formFactor: FormFactor

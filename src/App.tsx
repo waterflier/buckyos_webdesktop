@@ -1,13 +1,13 @@
 import { Navigate, RouterProvider, createBrowserRouter } from 'react-router-dom'
-import { DesktopBackground } from './components/desktop/DesktopBackground'
+import { DesktopBackground } from './desktop/DesktopBackground'
 import {
   DesktopBackgroundProvider,
   useDesktopBackground,
-} from './components/desktop/DesktopBackgroundProvider'
+} from './desktop/DesktopBackgroundProvider'
 import { I18nProvider } from './i18n/provider'
 import { PrototypeThemeProvider } from './theme/provider'
-import { DesktopRoute } from './routes/DesktopRoute'
-import { MessageHubRoute } from './routes/MessageHubRoute'
+import { DesktopRoute } from './desktop/DesktopRoute'
+import { MessageHubRoute } from './app/messagehub/MessageHubRoute'
 
 const router = createBrowserRouter([
   {
