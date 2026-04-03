@@ -5,6 +5,10 @@ import type {
 } from '../../../models/ui'
 import { AppContentRenderer } from '../apps/registry'
 import type { DesktopAppItem } from '../apps/types'
+import {
+  WindowDialogProvider,
+  resolveWindowDialogPermissions,
+} from './dialogs'
 
 export function MobileWindowSheet({
   activityLog,
@@ -35,27 +39,32 @@ export function MobileWindowSheet({
 
   return (
     <div className="absolute inset-0 z-40 overflow-hidden bg-[color:color-mix(in_srgb,var(--cp-bg)_94%,var(--cp-surface))]">
-      <div
-        className="flex h-full min-h-0 flex-col"
-        style={{
-          paddingBottom: safeAreaBottom + deadZone.bottom,
-        }}
+      <WindowDialogProvider
+        permissions={resolveWindowDialogPermissions(app)}
+        surface="mobile"
       >
         <div
-          className="desktop-scrollbar min-h-0 flex-1 overflow-y-auto p-4"
-          style={{ paddingTop: topInset > 0 ? topInset + 14 : 14 }}
+          className="flex h-full min-h-0 flex-col"
+          style={{
+            paddingBottom: safeAreaBottom + deadZone.bottom,
+          }}
         >
-          <AppContentRenderer
-            activityLog={activityLog}
-            app={app}
-            layoutState={layoutState}
-            locale={locale}
-            onSaveSettings={onSaveSettings}
-            runtimeContainer={runtimeContainer}
-            themeMode={themeMode}
-          />
+          <div
+            className="desktop-scrollbar min-h-0 flex-1 overflow-y-auto p-4"
+            style={{ paddingTop: topInset > 0 ? topInset + 14 : 14 }}
+          >
+            <AppContentRenderer
+              activityLog={activityLog}
+              app={app}
+              layoutState={layoutState}
+              locale={locale}
+              onSaveSettings={onSaveSettings}
+              runtimeContainer={runtimeContainer}
+              themeMode={themeMode}
+            />
+          </div>
         </div>
-      </div>
+      </WindowDialogProvider>
     </div>
   )
 }

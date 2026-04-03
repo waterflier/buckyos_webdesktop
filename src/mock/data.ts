@@ -38,6 +38,12 @@ const appCatalog: AppDefinition[] = [
       mobileStatusBarMode: 'standard',
       titleBarMode: 'system',
       placement: 'inplace',
+      desktopWindow: {
+        width: 560,
+        height: 460,
+        minWidth: 460,
+        minHeight: 340,
+      },
     },
   },
   {
@@ -57,6 +63,12 @@ const appCatalog: AppDefinition[] = [
       mobileStatusBarMode: 'compact',
       titleBarMode: 'system',
       placement: 'inplace',
+      desktopWindow: {
+        width: 760,
+        height: 520,
+        minWidth: 520,
+        minHeight: 360,
+      },
     },
   },
   {
@@ -76,6 +88,12 @@ const appCatalog: AppDefinition[] = [
       mobileStatusBarMode: 'compact',
       titleBarMode: 'system',
       placement: 'inplace',
+      desktopWindow: {
+        width: 880,
+        height: 580,
+        minWidth: 620,
+        minHeight: 400,
+      },
     },
   },
   {
@@ -95,6 +113,12 @@ const appCatalog: AppDefinition[] = [
       mobileStatusBarMode: 'compact',
       titleBarMode: 'system',
       placement: 'inplace',
+      desktopWindow: {
+        width: 700,
+        height: 520,
+        minWidth: 500,
+        minHeight: 360,
+      },
     },
   },
   {
@@ -114,6 +138,12 @@ const appCatalog: AppDefinition[] = [
       mobileStatusBarMode: 'compact',
       titleBarMode: 'system',
       placement: 'inplace',
+      desktopWindow: {
+        width: 620,
+        height: 440,
+        minWidth: 460,
+        minHeight: 320,
+      },
     },
   },
   {
@@ -133,6 +163,12 @@ const appCatalog: AppDefinition[] = [
       mobileStatusBarMode: 'standard',
       titleBarMode: 'system',
       placement: 'inplace',
+      desktopWindow: {
+        width: 780,
+        height: 560,
+        minWidth: 560,
+        minHeight: 380,
+      },
     },
   },
   {

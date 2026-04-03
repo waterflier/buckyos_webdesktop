@@ -72,6 +72,13 @@ export interface DesktopWallpaper {
   tileSize?: number
 }
 
+export interface DesktopWindowSizing {
+  width: number
+  height: number
+  minWidth?: number
+  minHeight?: number
+}
+
 export interface WindowManifest {
   defaultMode: DisplayMode
   allowMinimize: boolean
@@ -82,6 +89,7 @@ export interface WindowManifest {
   mobileStatusBarMode: MobileStatusBarMode
   titleBarMode: 'system' | 'custom'
   placement: 'inplace' | 'new-container'
+  desktopWindow?: DesktopWindowSizing
 }
 
 export interface AppDefinition {

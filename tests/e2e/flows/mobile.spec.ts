@@ -66,3 +66,51 @@ test('mobile viewport opens in-place app with system title bar', async ({
 
   expect(consoleErrors).toEqual([])
 })
+
+test('mobile demos exposes dialog trigger and opens centered dialog', async ({
+  page,
+}) => {
+  await page.goto('/?scenario=normal')
+
+  const demosButton = page.getByRole('button', { name: 'Demos' })
+  const demosBox = await demosButton.boundingBox()
+  expect(demosBox).not.toBeNull()
+
+  const startX = (demosBox?.x ?? 0) + (demosBox?.width ?? 0) / 2
+  const startY = (demosBox?.y ?? 0) + (demosBox?.height ?? 0) / 2
+
+  await demosButton.dispatchEvent('pointerdown', {
+    bubbles: true,
+    clientX: startX,
+    clientY: startY,
+    pointerId: 2,
+    pointerType: 'touch',
+  })
+  await page.locator('body').dispatchEvent('pointerup', {
+    bubbles: true,
+    clientX: startX + 6,
+    clientY: startY + 5,
+    pointerId: 2,
+    pointerType: 'touch',
+  })
+
+  await expect(page.getByText('Control gallery', { exact: true })).toBeVisible()
+  const trigger = page.getByRole('button', { name: 'Window modal' }).last()
+  await expect(trigger).toBeVisible()
+  await trigger.tap()
+  const dialog = page.getByRole('dialog', { name: 'Scoped window modal' })
+  await expect(dialog).toBeVisible()
+
+  const viewport = page.viewportSize()
+  const dialogBox = await dialog.boundingBox()
+  expect(viewport).not.toBeNull()
+  expect(dialogBox).not.toBeNull()
+
+  const viewportCenterX = (viewport?.width ?? 0) / 2
+  const viewportCenterY = (viewport?.height ?? 0) / 2
+  const dialogCenterX = (dialogBox?.x ?? 0) + (dialogBox?.width ?? 0) / 2
+  const dialogCenterY = (dialogBox?.y ?? 0) + (dialogBox?.height ?? 0) / 2
+
+  expect(Math.abs(dialogCenterX - viewportCenterX)).toBeLessThan(24)
+  expect(Math.abs(dialogCenterY - viewportCenterY)).toBeLessThan(40)
+})

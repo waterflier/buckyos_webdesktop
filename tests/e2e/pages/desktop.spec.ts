@@ -16,6 +16,14 @@ function boxesOverlap(
   )
 }
 
+function visibleLength(
+  start: number,
+  size: number,
+  viewportExtent: number,
+) {
+  return Math.max(0, Math.min(start + size, viewportExtent) - Math.max(start, 0))
+}
+
 test('desktop flow opens settings window and supports locale switch', async ({
   page,
 }) => {
@@ -102,12 +110,106 @@ test('desktop flow opens settings window and supports locale switch', async ({
   await page.mouse.up()
   const windowAfterResize = await page.getByTestId('window-settings').boundingBox()
   expect(windowAfterResize?.height).toBeGreaterThan(windowAfterWidthResize?.height ?? 0)
+
+  await page
+    .getByTestId('window-settings')
+    .getByRole('button', { name: 'Close' })
+    .click()
+  await expect(page.getByTestId('window-settings')).toHaveCount(0)
+
+  await page.getByTestId('desktop-app-settings').click()
+  await expect(page.getByTestId('window-settings')).toBeVisible()
+  const reopenedWindow = await page.getByTestId('window-settings').boundingBox()
+  expect(Math.abs((reopenedWindow?.x ?? 0) - (windowAfterResize?.x ?? 0))).toBeLessThan(2)
+  expect(Math.abs((reopenedWindow?.y ?? 0) - (windowAfterResize?.y ?? 0))).toBeLessThan(2)
+  expect(Math.abs((reopenedWindow?.width ?? 0) - (windowAfterResize?.width ?? 0))).toBeLessThan(2)
+  expect(Math.abs((reopenedWindow?.height ?? 0) - (windowAfterResize?.height ?? 0))).toBeLessThan(2)
+
+  await page.setViewportSize({ width: 780, height: 560 })
+  await expect(page.getByTestId('window-settings')).toBeVisible()
+  const constrainedWindow = await page.getByTestId('window-settings').boundingBox()
+  const closeButtonBox = await page
+    .getByTestId('window-settings')
+    .getByRole('button', { name: 'Close' })
+    .boundingBox()
+  expect((constrainedWindow?.x ?? 0) + (constrainedWindow?.width ?? 0)).toBeLessThanOrEqual(780)
+  expect(constrainedWindow?.y ?? 0).toBeGreaterThanOrEqual(0)
+  expect((closeButtonBox?.x ?? 0) + (closeButtonBox?.width ?? 0)).toBeLessThanOrEqual(780)
+  expect(closeButtonBox?.y ?? 0).toBeLessThanOrEqual(560)
+  const hasPageOverflow = await page.evaluate(() => ({
+    horizontal: document.documentElement.scrollWidth > window.innerWidth,
+    vertical: document.documentElement.scrollHeight > window.innerHeight,
+  }))
+  expect(hasPageOverflow.horizontal).toBeTruthy()
+  expect(hasPageOverflow.vertical).toBeTruthy()
+
+  await page.setViewportSize({ width: 1280, height: 720 })
+  await expect(page.getByTestId('window-settings')).toBeVisible()
   await page.getByRole('combobox', { name: 'Language' }).selectOption('zh-CN')
   await page.getByRole('button', { name: 'Save' }).last().click()
   await expect(page.getByText('系统默认项')).toBeVisible()
   await page.getByLabel('关闭').click()
 
   expect(consoleErrors).toEqual([])
+})
+
+test('large window can move offscreen while keeping title bar reachable', async ({
+  page,
+}) => {
+  await page.goto('/?scenario=normal')
+
+  await page.getByTestId('desktop-app-settings').click()
+  await expect(page.getByTestId('window-settings')).toBeVisible()
+
+  const windowBeforeResize = await page.getByTestId('window-settings').boundingBox()
+  await page.getByTestId('window-resize-right-settings').hover()
+  await page.mouse.down()
+  await page.mouse.move(
+    (windowBeforeResize?.x ?? 0) + (windowBeforeResize?.width ?? 0) + 180,
+    (windowBeforeResize?.y ?? 0) + 80,
+    { steps: 16 },
+  )
+  await page.mouse.up()
+
+  const windowAfterWidthResize = await page.getByTestId('window-settings').boundingBox()
+  await page.getByTestId('window-resize-bottom-right-settings').hover()
+  await page.mouse.down()
+  await page.mouse.move(
+    (windowAfterWidthResize?.x ?? 0) + (windowAfterWidthResize?.width ?? 0) + 160,
+    (windowAfterWidthResize?.y ?? 0) + (windowAfterWidthResize?.height ?? 0) + 140,
+    { steps: 16 },
+  )
+  await page.mouse.up()
+
+  const desktopViewport = page.viewportSize()
+  await page.getByTestId('window-drag-settings').hover()
+  await page.mouse.down()
+  await page.mouse.move(
+    (desktopViewport?.width ?? 1280) + 640,
+    (desktopViewport?.height ?? 720) + 420,
+    { steps: 20 },
+  )
+  await page.mouse.up()
+
+  const offscreenWindow = await page.getByTestId('window-settings').boundingBox()
+  const offscreenTitleBar = await page.getByTestId('window-drag-settings').boundingBox()
+  expect((offscreenWindow?.x ?? 0) + (offscreenWindow?.width ?? 0)).toBeGreaterThan(
+    desktopViewport?.width ?? 1280,
+  )
+  expect((offscreenWindow?.y ?? 0) + (offscreenWindow?.height ?? 0)).toBeGreaterThan(
+    desktopViewport?.height ?? 720,
+  )
+  expect(
+    visibleLength(
+      offscreenTitleBar?.x ?? 0,
+      offscreenTitleBar?.width ?? 0,
+      desktopViewport?.width ?? 1280,
+    ),
+  ).toBeGreaterThan(80)
+  expect(offscreenTitleBar?.y ?? 0).toBeGreaterThanOrEqual(0)
+  expect((offscreenTitleBar?.y ?? 0) + (offscreenTitleBar?.height ?? 0)).toBeLessThanOrEqual(
+    desktopViewport?.height ?? 720,
+  )
 })
 
 test('empty and error states render', async ({ page }) => {
@@ -131,6 +233,44 @@ test('demos app renders common controls', async ({ page }) => {
 
   await page.getByRole('textbox', { name: 'Search query' }).fill('State matrix')
   await expect(page.getByRole('textbox', { name: 'Search query' })).toHaveValue('State matrix')
+  await page.getByRole('button', { name: 'Fullscreen modal' }).click()
+  await expect(page.getByText('Fullscreen request: Denied')).toBeVisible()
   await page.getByRole('tab', { name: 'Status' }).click()
   await expect(page.getByText('Control coverage')).toBeVisible()
+})
+
+test('window modal only blocks its owner window', async ({ page }) => {
+  await page.goto('/?scenario=normal')
+
+  await page.getByTestId('desktop-app-settings').click()
+  await expect(page.getByTestId('window-settings')).toBeVisible()
+
+  const settingsBeforeDrag = await page.getByTestId('window-settings').boundingBox()
+  await page.getByTestId('window-drag-settings').hover()
+  await page.mouse.down()
+  await page.mouse.move(
+    1180,
+    (settingsBeforeDrag?.y ?? 0) + 90,
+    { steps: 18 },
+  )
+  await page.mouse.up()
+
+  await page.getByTestId('desktop-app-demos').click()
+  await expect(page.getByTestId('window-demos')).toBeVisible()
+  await page.getByRole('button', { name: 'Window modal' }).first().click()
+  await expect(page.getByRole('dialog', { name: 'Scoped window modal' })).toBeVisible()
+
+  await page.getByRole('combobox', { name: 'Language' }).selectOption('ja')
+  await expect(page.getByRole('combobox', { name: 'Language' })).toHaveValue('ja')
+
+  await expect(page.getByRole('dialog', { name: 'Scoped window modal' })).toBeVisible()
+  await page
+    .getByTestId('window-settings')
+    .getByRole('button', { name: 'Close' })
+    .click()
+  await expect(page.getByTestId('window-settings')).toHaveCount(0)
+  await expect(page.getByRole('dialog', { name: 'Scoped window modal' })).toBeVisible()
+  await page.getByRole('button', { name: 'Apply change' }).click()
+  await expect(page.getByRole('dialog', { name: 'Scoped window modal' })).toHaveCount(0)
+  await expect(page.getByRole('textbox', { name: 'Owner' })).toHaveValue('Window modal owner')
 })

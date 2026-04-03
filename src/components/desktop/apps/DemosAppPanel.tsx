@@ -30,6 +30,10 @@ import { AppIcon } from '../DesktopVisuals'
 import { appIconSurfaceStyle } from '../DesktopVisualTokens'
 import { useI18n } from '../../../i18n/provider'
 import { localeLabels } from '../../../mock/data'
+import {
+  WindowDialogPermissionError,
+  useWindowDialog,
+} from '../windows/dialogs'
 import { DemoSection, MetricCard, PanelIntro } from './AppPanelPrimitives'
 import type { AppContentLoaderProps } from './types'
 
@@ -38,6 +42,7 @@ export function DemosAppPanel({
   themeMode,
 }: AppContentLoaderProps) {
   const { t } = useI18n()
+  const windowDialog = useWindowDialog()
   const isCompact = useMediaQuery('(max-width: 900px)')
   const [query, setQuery] = useState('Window controls')
   const [owner, setOwner] = useState('Prototype team')
@@ -53,6 +58,8 @@ export function DemosAppPanel({
   const [scale, setScale] = useState(58)
   const [tab, setTab] = useState(0)
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
+  const [dialogState, setDialogState] = useState<'idle' | 'applied' | 'dismissed'>('idle')
+  const [fullscreenState, setFullscreenState] = useState<'idle' | 'opened' | 'denied'>('idle')
 
   const densityLabels = {
     compact: t('demos.density.compact'),
@@ -69,6 +76,16 @@ export function DemosAppPanel({
     maximized: t('demos.launch.maximized'),
     focused: t('demos.launch.focused'),
   }
+  const dialogStateLabels = {
+    idle: t('demos.dialog.state.idle'),
+    applied: t('demos.dialog.state.applied'),
+    dismissed: t('demos.dialog.state.dismissed'),
+  }
+  const fullscreenStateLabels = {
+    idle: t('demos.dialog.fullscreen.state.idle'),
+    opened: t('demos.dialog.fullscreen.state.opened'),
+    denied: t('demos.dialog.fullscreen.state.denied'),
+  }
 
   const readiness = Math.min(
     100,
@@ -80,6 +97,79 @@ export function DemosAppPanel({
       Math.round(scale / 5),
   )
 
+  const handleOpenWindowDialog = async () => {
+    const result = await windowDialog.open<'apply'>({
+      title: t('demos.dialog.title'),
+      description: t('demos.dialog.description'),
+      size: 'md',
+      renderBody: () => (
+        <div className="space-y-3 text-sm leading-6 text-[color:var(--cp-muted)]">
+          <p>{t('demos.dialog.body')}</p>
+          <div className="rounded-[18px] border border-[color:color-mix(in_srgb,var(--cp-border)_76%,transparent)] bg-[color:color-mix(in_srgb,var(--cp-accent-soft)_8%,var(--cp-surface))] px-4 py-3 text-[color:var(--cp-text)]">
+            {t('demos.dialog.note')}
+          </div>
+        </div>
+      ),
+      renderActions: ({ close, dismiss }) => (
+        <>
+          <Button type="button" variant="text" onClick={() => dismiss()}>
+            {t('common.cancel')}
+          </Button>
+          <Button
+            type="button"
+            variant="contained"
+            onClick={() => close('apply')}
+          >
+            {t('demos.dialog.confirm')}
+          </Button>
+        </>
+      ),
+    })
+
+    if (result === 'apply') {
+      setDialogState('applied')
+      setOwner(t('demos.dialog.ownerApplied'))
+      return
+    }
+
+    setDialogState('dismissed')
+  }
+
+  const handleOpenFullscreenDialog = async () => {
+    try {
+      const result = await windowDialog.open<'apply'>({
+        presentation: 'fullscreen',
+        title: t('demos.dialog.fullscreen.title'),
+        description: t('demos.dialog.fullscreen.description'),
+        size: 'fullscreen',
+        renderBody: () => (
+          <p className="text-sm leading-6 text-[color:var(--cp-muted)]">
+            {t('demos.dialog.fullscreen.body')}
+          </p>
+        ),
+        renderActions: ({ close, dismiss }) => (
+          <>
+            <Button type="button" variant="text" onClick={() => dismiss()}>
+              {t('common.cancel')}
+            </Button>
+            <Button type="button" variant="contained" onClick={() => close('apply')}>
+              {t('demos.dialog.confirm')}
+            </Button>
+          </>
+        ),
+      })
+
+      setFullscreenState(result === 'apply' ? 'opened' : 'idle')
+    } catch (error) {
+      if (error instanceof WindowDialogPermissionError) {
+        setFullscreenState('denied')
+        return
+      }
+
+      throw error
+    }
+  }
+
   return (
     <div className="space-y-4">
       <PanelIntro
@@ -87,22 +177,48 @@ export function DemosAppPanel({
         title={t('demos.title')}
         body={t('demos.body')}
         aside={
-          <div className="shell-subtle-panel flex max-w-[18rem] items-center gap-3 px-4 py-3">
-            <span
-              className="flex h-12 w-12 items-center justify-center rounded-[18px] border shadow-[0_16px_32px_color-mix(in_srgb,var(--cp-shadow)_10%,transparent)]"
-              style={appIconSurfaceStyle('var(--cp-accent-soft)', 'window')}
-            >
-              <AppIcon iconKey="demos" className="text-white" />
-            </span>
-            <div>
-              <p className="shell-kicker">{t('apps.demos')}</p>
-              <p className="mt-1 text-sm leading-5 text-[color:var(--cp-muted)]">
-                {t('demos.previewBody')}
-              </p>
+          <div className="shell-subtle-panel max-w-[18rem] px-4 py-3">
+            <div className="flex items-center gap-3">
+              <span
+                className="flex h-12 w-12 items-center justify-center rounded-[18px] border shadow-[0_16px_32px_color-mix(in_srgb,var(--cp-shadow)_10%,transparent)]"
+                style={appIconSurfaceStyle('var(--cp-accent-soft)', 'window')}
+              >
+                <AppIcon iconKey="demos" className="text-white" />
+              </span>
+              <div>
+                <p className="shell-kicker">{t('apps.demos')}</p>
+                <p className="mt-1 text-sm leading-5 text-[color:var(--cp-muted)]">
+                  {t('demos.previewBody')}
+                </p>
+              </div>
             </div>
+            <Button
+              className="!mt-3"
+              color="secondary"
+              data-testid="demos-open-window-dialog"
+              size="small"
+              type="button"
+              variant="contained"
+              onClick={() => void handleOpenWindowDialog()}
+            >
+              {t('demos.dialog.trigger')}
+            </Button>
           </div>
         }
       />
+
+      <div className="sm:hidden">
+        <Button
+          fullWidth
+          color="secondary"
+          data-testid="demos-open-window-dialog"
+          type="button"
+          variant="contained"
+          onClick={() => void handleOpenWindowDialog()}
+        >
+          {t('demos.dialog.trigger')}
+        </Button>
+      </div>
 
       <div className="grid gap-3 md:grid-cols-3">
         <MetricCard label={t('demos.readiness')} tone="success" value={`${readiness}%`} />
@@ -142,6 +258,14 @@ export function DemosAppPanel({
               >
                 {t('demos.quickMenu')}
               </Button>
+              <Button
+                data-testid="demos-open-fullscreen-dialog"
+                type="button"
+                variant="outlined"
+                onClick={() => void handleOpenFullscreenDialog()}
+              >
+                {t('demos.dialog.fullscreen.trigger')}
+              </Button>
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
@@ -163,6 +287,9 @@ export function DemosAppPanel({
               <Chip size="small" label={`${t('common.theme')}: ${t(themeMode === 'light' ? 'common.light' : 'common.dark')}`} />
               <Chip size="small" label={`${t('common.language')}: ${localeLabels[locale as keyof typeof localeLabels] ?? locale}`} />
               <Chip size="small" label={`${t('demos.stateLabel')}: ${releaseLabels[releaseState]}`} />
+              <Chip size="small" label={`${t('demos.dialog.metric')}: ${dialogStateLabels[dialogState]}`} />
+              <Chip size="small" label={`${t('demos.dialog.fullscreen.permission')}: ${windowDialog.permissions.fullscreen ? t('demos.dialog.fullscreen.allowed') : t('demos.dialog.fullscreen.denied')}`} />
+              <Chip size="small" label={`${t('demos.dialog.fullscreen.metric')}: ${fullscreenStateLabels[fullscreenState]}`} />
             </div>
 
             <Menu

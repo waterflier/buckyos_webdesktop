@@ -8,6 +8,10 @@ import type {
 import type { ThemeMode } from '../../../models/ui'
 import { useI18n } from '../../../i18n/provider'
 import { AppIcon } from '../DesktopVisuals'
+import {
+  WindowDialogProvider,
+  resolveWindowDialogPermissions,
+} from './dialogs'
 import type { DesktopWindowDataModel, ResizeDirection } from './types'
 
 function WindowMinimizeIcon() {
@@ -91,6 +95,18 @@ function WindowChromeButton({
   )
 }
 
+function shouldIgnoreWindowFocus(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) {
+    return false
+  }
+
+  return Boolean(
+    target.closest(
+      'button, input, select, textarea, a, [role="button"], [role="tab"], [role="switch"], [role="checkbox"], [role="radio"], [role="slider"], [contenteditable="true"], .MuiButtonBase-root, .MuiInputBase-root',
+    ),
+  )
+}
+
 export function DesktopWindowContainer({
   children,
   isFront,
@@ -162,103 +178,114 @@ export function DesktopWindowContainer({
         isFront ? 'opacity-100' : 'opacity-[0.97]',
       )}
       style={style}
-      onMouseDown={onFocus}
+      onMouseDown={(event) => {
+        if (shouldIgnoreWindowFocus(event.target)) {
+          return
+        }
+
+        onFocus()
+      }}
     >
-      <div
-        data-testid={`window-drag-${app.id}`}
-        className="flex h-8 cursor-move items-center justify-between gap-2 px-2 py-0.5 pl-2 pr-1"
-        style={titleBarStyle}
-        onPointerDown={onDragPointerDown}
+      <WindowDialogProvider
+        permissions={resolveWindowDialogPermissions(app)}
+        surface="desktop"
       >
-        <div className="min-w-0 flex items-center gap-2">
-          <span
-            className="flex size-4 shrink-0 items-center justify-center"
-            style={{ color: titleTextColor }}
-          >
-            <AppIcon
-              iconKey={app.iconKey}
-              className={clsx(
-                'size-[12px] text-inherit',
-                themeMode === 'light' ? 'stroke-[1.9]' : 'stroke-[1.6]',
-              )}
-            />
-          </span>
-          <p
-            className="truncate text-xs font-medium"
-            style={{ color: titleTextColor }}
-          >
-            {t(app.labelKey)}
-          </p>
-        </div>
         <div
-          className="flex items-center gap-px"
-          onPointerDown={(event) => event.stopPropagation()}
+          data-testid={`window-drag-${app.id}`}
+          className="flex h-8 cursor-move items-center justify-between gap-2 px-2 py-0.5 pl-2 pr-1"
+          style={titleBarStyle}
+          onPointerDown={onDragPointerDown}
         >
-          {app.manifest.allowMinimize ? (
-            <WindowChromeButton
-              ariaLabel={t('common.minimize')}
-              className={isFront ? activeChromeButtonClass : undefined}
-              onClick={onMinimize}
+          <div className="min-w-0 flex items-center gap-2">
+            <span
+              className="flex size-4 shrink-0 items-center justify-center"
+              style={{ color: titleTextColor }}
             >
-              <WindowMinimizeIcon />
-            </WindowChromeButton>
-          ) : null}
-          {app.manifest.allowMaximize ? (
-            <WindowChromeButton
-              ariaLabel={
-                isMaximized
-                  ? t('common.restoreWindow')
-                  : t('common.maximize')
-              }
-              className={isFront ? activeChromeButtonClass : undefined}
-              onClick={onMaximize}
+              <AppIcon
+                iconKey={app.iconKey}
+                className={clsx(
+                  'size-[12px] text-inherit',
+                  themeMode === 'light' ? 'stroke-[1.9]' : 'stroke-[1.6]',
+                )}
+              />
+            </span>
+            <p
+              className="truncate text-xs font-medium"
+              style={{ color: titleTextColor }}
             >
-              {isMaximized ? <WindowRestoreIcon /> : <WindowMaximizeIcon />}
-            </WindowChromeButton>
-          ) : null}
-          <WindowChromeButton
-            ariaLabel={t('common.close')}
-            className={isFront ? activeChromeButtonClass : undefined}
-            onClick={onClose}
+              {t(app.labelKey)}
+            </p>
+          </div>
+          <div
+            className="flex items-center gap-px"
+            onPointerDown={(event) => event.stopPropagation()}
           >
-            <X className="size-[12px] stroke-[2]" />
-          </WindowChromeButton>
+            {app.manifest.allowMinimize ? (
+              <WindowChromeButton
+                ariaLabel={t('common.minimize')}
+                className={isFront ? activeChromeButtonClass : undefined}
+                onClick={onMinimize}
+              >
+                <WindowMinimizeIcon />
+              </WindowChromeButton>
+            ) : null}
+            {app.manifest.allowMaximize ? (
+              <WindowChromeButton
+                ariaLabel={
+                  isMaximized
+                    ? t('common.restoreWindow')
+                    : t('common.maximize')
+                }
+                className={isFront ? activeChromeButtonClass : undefined}
+                onClick={onMaximize}
+              >
+                {isMaximized ? <WindowRestoreIcon /> : <WindowMaximizeIcon />}
+              </WindowChromeButton>
+            ) : null}
+            <WindowChromeButton
+              ariaLabel={t('common.close')}
+              className={isFront ? activeChromeButtonClass : undefined}
+              onClick={onClose}
+            >
+              <X className="size-[12px] stroke-[2]" />
+            </WindowChromeButton>
+          </div>
         </div>
-      </div>
 
-      <div className="desktop-scrollbar min-h-0 flex-1 overflow-y-auto p-5">
-        {children}
-      </div>
+        <div className="desktop-scrollbar min-h-0 flex-1 overflow-y-auto p-5">
+          {children}
+        </div>
 
-      {!isMaximized ? (
-        <>
-          <div
-            data-testid={`window-resize-left-${app.id}`}
-            className="absolute inset-y-0 left-0 z-20 w-1.5 cursor-ew-resize"
-            onPointerDown={onResizePointerDown('left')}
-          />
-          <div
-            data-testid={`window-resize-right-${app.id}`}
-            className="absolute inset-y-0 right-0 z-20 w-1.5 cursor-ew-resize"
-            onPointerDown={onResizePointerDown('right')}
-          />
-          <div
-            data-testid={`window-resize-bottom-${app.id}`}
-            className="absolute bottom-0 left-0 right-0 z-20 h-1.5 cursor-ns-resize"
-            onPointerDown={onResizePointerDown('bottom')}
-          />
-          <div
-            data-testid={`window-resize-bottom-left-${app.id}`}
-            className="absolute bottom-0 left-0 z-30 h-3.5 w-3.5 cursor-nesw-resize"
-            onPointerDown={onResizePointerDown('bottom-left')}
-          />
-          <div
-            data-testid={`window-resize-bottom-right-${app.id}`}
-            className="absolute bottom-0 right-0 z-30 h-3.5 w-3.5 cursor-nwse-resize"
-            onPointerDown={onResizePointerDown('bottom-right')}
-          />
-        </>
-      ) : null}
+        {!isMaximized ? (
+          <>
+            <div
+              data-testid={`window-resize-left-${app.id}`}
+              className="absolute inset-y-0 left-0 z-20 w-1.5 cursor-ew-resize"
+              onPointerDown={onResizePointerDown('left')}
+            />
+            <div
+              data-testid={`window-resize-right-${app.id}`}
+              className="absolute inset-y-0 right-0 z-20 w-1.5 cursor-ew-resize"
+              onPointerDown={onResizePointerDown('right')}
+            />
+            <div
+              data-testid={`window-resize-bottom-${app.id}`}
+              className="absolute bottom-0 left-0 right-0 z-20 h-1.5 cursor-ns-resize"
+              onPointerDown={onResizePointerDown('bottom')}
+            />
+            <div
+              data-testid={`window-resize-bottom-left-${app.id}`}
+              className="absolute bottom-0 left-0 z-30 h-3.5 w-3.5 cursor-nesw-resize"
+              onPointerDown={onResizePointerDown('bottom-left')}
+            />
+            <div
+              data-testid={`window-resize-bottom-right-${app.id}`}
+              className="absolute bottom-0 right-0 z-30 h-3.5 w-3.5 cursor-nwse-resize"
+              onPointerDown={onResizePointerDown('bottom-right')}
+            />
+          </>
+        ) : null}
+      </WindowDialogProvider>
     </div>
   )
 }

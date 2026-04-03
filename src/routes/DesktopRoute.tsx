@@ -7,6 +7,7 @@ import {
 } from '@mui/material'
 import clsx from 'clsx'
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -39,10 +40,15 @@ import { StatusBar } from '../components/desktop/StatusBar'
 import { SystemSidebar } from '../components/desktop/SystemSidebar'
 import { DesktopWidgetRenderer } from '../components/desktop/widgets/WidgetRenderer'
 import { DesktopWindowLayer } from '../components/desktop/windows/DesktopWindowLayer'
+import {
+  getDesktopWindowPositionBounds,
+  getDesktopWindowWorkspaceBounds,
+} from '../components/desktop/windows/geometry'
 import { MobileWindowSheet } from '../components/desktop/windows/MobileWindowSheet'
 import {
   createDesktopWindowLayerDataModel,
   createWindowRecord,
+  resolveDesktopWindowSizing,
 } from '../components/desktop/windows/model'
 import {
   mobileStatusBarMode,
@@ -71,6 +77,87 @@ import type {
 import { useThemeMode } from '../theme/provider'
 
 const runtimeStorageKey = 'buckyos.prototype.runtime.v1'
+const windowGeometryStorageKey = 'buckyos.window-geometry.desktop.v1'
+const desktopMinCanvasSize = { width: 960, height: 720 }
+
+type WindowGeometry = Pick<WindowRecord, 'x' | 'y' | 'width' | 'height'>
+type WindowGeometryMap = Record<string, WindowGeometry>
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
+function sanitizeWindowGeometryMap(
+  input: unknown,
+): WindowGeometryMap {
+  if (!input || typeof input !== 'object') {
+    return {}
+  }
+
+  return Object.fromEntries(
+    Object.entries(input).flatMap(([appId, geometry]) => {
+      if (
+        !geometry ||
+        typeof geometry !== 'object' ||
+        !isFiniteNumber((geometry as WindowGeometry).x) ||
+        !isFiniteNumber((geometry as WindowGeometry).y) ||
+        !isFiniteNumber((geometry as WindowGeometry).width) ||
+        !isFiniteNumber((geometry as WindowGeometry).height)
+      ) {
+        return []
+      }
+
+      return [[appId, geometry as WindowGeometry]]
+    }),
+  )
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max)
+}
+
+function normalizeWindowGeometryForViewport(
+  app: AppDefinition,
+  geometry: Partial<WindowGeometry> | undefined,
+  index: number,
+  viewportBounds: ReturnType<typeof getDesktopWindowWorkspaceBounds>,
+) {
+  const sizing = resolveDesktopWindowSizing(app)
+  const minWidth = Math.min(sizing.minWidth, viewportBounds.maxWidth)
+  const minHeight = Math.min(sizing.minHeight, viewportBounds.maxHeight)
+  const width = clamp(
+    geometry?.width ?? sizing.width,
+    minWidth,
+    viewportBounds.maxWidth,
+  )
+  const height = clamp(
+    geometry?.height ?? sizing.height,
+    minHeight,
+    viewportBounds.maxHeight,
+  )
+  const defaultX = viewportBounds.minX + 24 + (index % 4) * 36
+  const defaultY = viewportBounds.minY + 18 + (index % 3) * 32
+  const positionBounds = getDesktopWindowPositionBounds(viewportBounds, {
+    width,
+    height,
+  })
+
+  return {
+    width,
+    height,
+    x: clamp(geometry?.x ?? defaultX, positionBounds.minX, positionBounds.maxX),
+    y: clamp(geometry?.y ?? defaultY, positionBounds.minY, positionBounds.maxY),
+  }
+}
+
+function sameWindowGeometry(left: WindowGeometry | undefined, right: WindowGeometry) {
+  return (
+    left?.x === right.x &&
+    left?.y === right.y &&
+    left?.width === right.width &&
+    left?.height === right.height
+  )
+}
 
 /**
  * Reads env(safe-area-inset-*) values for immersive fullscreen on mobile.
@@ -462,10 +549,17 @@ export function DesktopRoute() {
     mouseX: number
     mouseY: number
   } | null>(null)
+  const windowGeometryByAppRef = useRef<WindowGeometryMap>(
+    sanitizeWindowGeometryMap(readJson(windowGeometryStorageKey)),
+  )
   const suppressOpenItemId = useRef<string | null>(null)
   const draggedOpenBlockItemId = useRef<string | null>(null)
   const draggedOpenBlockTimeoutId = useRef<number | null>(null)
   const workspaceRef = useRef<HTMLDivElement | null>(null)
+  const [viewportSize, setViewportSize] = useState(() => ({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  }))
   const [workspaceSize, setWorkspaceSize] = useState({ width: 960, height: 720 })
 
   const { data, error, isLoading, mutate } = useSWR(
@@ -569,6 +663,14 @@ export function DesktopRoute() {
     right: 0,
   }
   const safeArea = useSafeAreaInsets()
+  const desktopWorkspaceTopInset =
+    safeArea.top + resolvedDeadZone.top + shellStatusBarHeight('desktop')
+  const desktopViewportBounds = getDesktopWindowWorkspaceBounds({
+    deadZone: resolvedDeadZone,
+    safeArea,
+    topInset: desktopWorkspaceTopInset,
+    viewportSize,
+  })
   const workspaceInnerWidth = Math.max(
     workspaceSize.width
       - resolvedDeadZone.left - resolvedDeadZone.right
@@ -586,14 +688,95 @@ export function DesktopRoute() {
     setActivityLog((prev) => [`${stamp} · ${message}`, ...prev].slice(0, 8))
   }
 
+  const persistWindowGeometry = useCallback((appId: string, geometry: WindowGeometry) => {
+    if (sameWindowGeometry(windowGeometryByAppRef.current[appId], geometry)) {
+      return
+    }
+
+    windowGeometryByAppRef.current = {
+      ...windowGeometryByAppRef.current,
+      [appId]: geometry,
+    }
+    writeJson(windowGeometryStorageKey, windowGeometryByAppRef.current)
+  }, [])
+
+  const normalizeOpenWindowsForViewport = useCallback((
+    nextViewportSize: { width: number; height: number },
+    nextDeadZone = resolvedDeadZone,
+    nextSafeArea = safeArea,
+  ) => {
+    const nextBounds = getDesktopWindowWorkspaceBounds({
+      deadZone: nextDeadZone,
+      safeArea: nextSafeArea,
+      topInset:
+        nextSafeArea.top + nextDeadZone.top + shellStatusBarHeight('desktop'),
+      viewportSize: nextViewportSize,
+    })
+
+    setWindows((prev) => {
+      let changed = false
+      const next = prev.map((windowItem, index) => {
+        const app = findDesktopAppById(apps, windowItem.appId)
+
+        if (!app) {
+          return windowItem
+        }
+
+        const geometry = normalizeWindowGeometryForViewport(
+          app,
+          windowItem,
+          index,
+          nextBounds,
+        )
+
+        if (sameWindowGeometry(windowItem, geometry)) {
+          return windowItem
+        }
+
+        changed = true
+        persistWindowGeometry(windowItem.appId, geometry)
+        return {
+          ...windowItem,
+          ...geometry,
+        }
+      })
+
+      return changed ? next : prev
+    })
+  }, [apps, persistWindowGeometry, resolvedDeadZone, safeArea])
+
+  useEffect(() => {
+    const updateViewportSize = () => {
+      const nextViewportSize = {
+        width: window.innerWidth,
+        height: window.innerHeight,
+      }
+
+      setViewportSize(nextViewportSize)
+      if (formFactor === 'desktop') {
+        normalizeOpenWindowsForViewport(nextViewportSize)
+      }
+    }
+
+    window.addEventListener('resize', updateViewportSize)
+    window.addEventListener('orientationchange', updateViewportSize)
+
+    return () => {
+      window.removeEventListener('resize', updateViewportSize)
+      window.removeEventListener('orientationchange', updateViewportSize)
+    }
+  }, [formFactor, normalizeOpenWindowsForViewport])
+
   const restoreDefaults = () => {
     if (!data) {
       return
     }
 
     window.localStorage.removeItem(layoutStorageKey(formFactor))
+    window.localStorage.removeItem(windowGeometryStorageKey)
     setLayoutState(structuredClone(data.layout))
     setWindows([])
+    windowGeometryByAppRef.current = {}
   }
 
   const handleOpenApp = (appId: string) => {
@@ -631,7 +814,16 @@ export function DesktopRoute() {
         )
       }
 
-      return [...prev, createWindowRecord(app, prev.length)]
+      const preferredGeometry =
+        scenario === 'normal' ? windowGeometryByAppRef.current[app.id] : undefined
+      const normalizedGeometry = normalizeWindowGeometryForViewport(
+        app,
+        preferredGeometry,
+        prev.length,
+        desktopViewportBounds,
+      )
+
+      return [...prev, createWindowRecord(app, prev.length, normalizedGeometry)]
     })
     logActivity(
       t('activity.opened', 'Opened {{name}}', { name: t(app.labelKey, app.id) }),
@@ -642,6 +834,12 @@ export function DesktopRoute() {
     const closing = windows.find((windowItem) => windowItem.id === windowId)
     if (closing) {
       const app = findDesktopAppById(apps, closing.appId)
+      persistWindowGeometry(closing.appId, {
+        x: closing.x,
+        y: closing.y,
+        width: closing.width,
+        height: closing.height,
+      })
       logActivity(
         t('activity.closed', 'Closed {{name}}', {
           name: t(app?.labelKey ?? closing.titleKey),
@@ -650,6 +848,28 @@ export function DesktopRoute() {
     }
 
     setWindows((prev) => prev.filter((windowItem) => windowItem.id !== windowId))
+  }
+
+  const updateWindowGeometry = (
+    windowId: string,
+    geometry: Partial<WindowGeometry>,
+  ) => {
+    setWindows((prev) =>
+      prev.map((windowItem) => {
+        if (windowItem.id !== windowId) {
+          return windowItem
+        }
+
+        const nextWindow = { ...windowItem, ...geometry }
+        persistWindowGeometry(windowItem.appId, {
+          x: nextWindow.x,
+          y: nextWindow.y,
+          width: nextWindow.width,
+          height: nextWindow.height,
+        })
+        return nextWindow
+      }),
+    )
   }
 
   const focusWindow = (windowId: string) => {
@@ -898,6 +1118,13 @@ export function DesktopRoute() {
   }
 
   const applySettings = (values: SystemPreferencesInput) => {
+    const nextDeadZone = {
+      top: values.deadZoneTop,
+      bottom: values.deadZoneBottom,
+      left: values.deadZoneLeft,
+      right: values.deadZoneRight,
+    }
+
     setLocale(values.locale)
     setThemeMode(values.theme as ThemeMode)
     setRuntimeContainer(values.runtimeContainer)
@@ -908,14 +1135,12 @@ export function DesktopRoute() {
 
       return {
         ...prev,
-        deadZone: {
-          top: values.deadZoneTop,
-          bottom: values.deadZoneBottom,
-          left: values.deadZoneLeft,
-          right: values.deadZoneRight,
-        },
+        deadZone: nextDeadZone,
       }
     })
+    if (formFactor === 'desktop') {
+      normalizeOpenWindowsForViewport(viewportSize, nextDeadZone)
+    }
 
     logActivity(t('activity.saved'))
     setSnackbar(t('activity.saved'))
@@ -931,7 +1156,6 @@ export function DesktopRoute() {
       ? topMobileWindow.app
       : undefined
   const shellBarHeight = shellStatusBarHeight(formFactor, activeMobileApp)
-  const desktopWorkspaceTopInset = safeArea.top + resolvedDeadZone.top + shellBarHeight
   const mobileSheetTopInset =
     activeMobileApp && mobileStatusBarMode(activeMobileApp) === 'standard'
       ? safeArea.top + resolvedDeadZone.top + shellBarHeight
@@ -1018,9 +1242,12 @@ export function DesktopRoute() {
   useEffect(() => resetBackground, [resetBackground])
 
   return (
-    <main className="relative isolate min-h-dvh overflow-hidden bg-[color:var(--cp-bg)]">
-      <section className="relative z-10 min-h-dvh overflow-hidden">
-        <div className="relative min-h-dvh overflow-hidden" ref={workspaceRef}>
+    <main className="relative isolate min-h-dvh bg-[color:var(--cp-bg)]">
+      <section className="relative z-10 min-h-dvh">
+        <div
+          ref={workspaceRef}
+          className="relative h-dvh min-h-dvh"
+        >
           {!isLoading && !error && layoutState ? (
             <>
               <SystemSidebar
@@ -1057,6 +1284,8 @@ export function DesktopRoute() {
               <div
                 className="relative"
                 style={{
+                  minWidth: isMobile ? undefined : desktopMinCanvasSize.width,
+                  minHeight: isMobile ? undefined : desktopMinCanvasSize.height,
                   paddingTop: workspaceTopPadding,
                   paddingBottom: resolvedDeadZone.bottom + safeArea.bottom,
                   paddingLeft: resolvedDeadZone.left + safeArea.left,
@@ -1167,6 +1396,7 @@ export function DesktopRoute() {
                   layoutState={layoutState}
                   locale={locale}
                   onClose={handleCloseWindow}
+                  onGeometryChange={updateWindowGeometry}
                   onFocus={focusWindow}
                   onMaximize={toggleMaximizeWindow}
                   onMinimize={minimizeWindow}
@@ -1176,7 +1406,7 @@ export function DesktopRoute() {
                   themeMode={themeMode}
                   topInset={desktopWorkspaceTopInset}
                   uiModel={windowLayerModel}
-                  workspaceSize={workspaceSize}
+                  workspaceSize={viewportSize}
                 />
               )}
 

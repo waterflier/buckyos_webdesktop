@@ -1,7 +1,6 @@
 import {
   useEffect,
   useRef,
-  useState,
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 import type {
@@ -11,6 +10,10 @@ import type {
 } from '../../../models/ui'
 import { AppContentRenderer } from '../apps/registry'
 import { DesktopWindowContainer } from './DesktopWindowContainer'
+import {
+  getDesktopWindowPositionBounds,
+  getDesktopWindowWorkspaceBounds,
+} from './geometry'
 import type {
   DesktopWindowDataModel,
   DesktopWindowLayerDataModel,
@@ -23,6 +26,7 @@ export function DesktopWindowLayer({
   layoutState,
   locale,
   onClose,
+  onGeometryChange,
   onFocus,
   onMaximize,
   onMinimize,
@@ -39,6 +43,10 @@ export function DesktopWindowLayer({
   layoutState: LayoutState
   locale: string
   onClose: (windowId: string) => void
+  onGeometryChange: (
+    windowId: string,
+    geometry: Partial<Pick<DesktopWindowDataModel, 'x' | 'y' | 'width' | 'height'>>,
+  ) => void
   onFocus: (windowId: string) => void
   onMaximize: (windowId: string) => void
   onMinimize: (windowId: string) => void
@@ -50,6 +58,8 @@ export function DesktopWindowLayer({
   uiModel: DesktopWindowLayerDataModel
   workspaceSize: { width: number; height: number }
 }) {
+  const windows = uiModel.windows
+  const topZIndex = uiModel.topWindow?.zIndex ?? 0
   const dragState = useRef<{
     id: string
     offsetX: number
@@ -58,6 +68,8 @@ export function DesktopWindowLayer({
   const resizeState = useRef<{
     id: string
     direction: ResizeDirection
+    minWidth: number
+    minHeight: number
     startWidth: number
     startHeight: number
     startX: number
@@ -65,13 +77,12 @@ export function DesktopWindowLayer({
     startWindowX: number
     startWindowY: number
   } | null>(null)
-  const positionsRef = useRef<Record<string, { x: number; y: number }>>({})
-  const sizesRef = useRef<Record<string, { width: number; height: number }>>({})
+  const windowsRef = useRef(windows)
   const layerRef = useRef<HTMLDivElement | null>(null)
-  const [positions, setPositions] = useState<Record<string, { x: number; y: number }>>({})
-  const [sizes, setSizes] = useState<Record<string, { width: number; height: number }>>({})
-  const windows = uiModel.windows
-  const topZIndex = uiModel.topWindow?.zIndex ?? 0
+
+  useEffect(() => {
+    windowsRef.current = windows
+  }, [windows])
 
   const handlePointerDown =
     (windowItem: DesktopWindowDataModel) =>
@@ -86,15 +97,10 @@ export function DesktopWindowLayer({
         return
       }
 
-      const anchored = positionsRef.current[windowItem.id] ?? {
-        x: windowItem.x,
-        y: windowItem.y,
-      }
-
       dragState.current = {
         id: windowItem.id,
-        offsetX: event.clientX - layerRect.left - anchored.x,
-        offsetY: event.clientY - layerRect.top - anchored.y,
+        offsetX: event.clientX - layerRect.left - windowItem.x,
+        offsetY: event.clientY - layerRect.top - windowItem.y,
       }
       onFocus(windowItem.id)
       event.preventDefault()
@@ -107,24 +113,17 @@ export function DesktopWindowLayer({
         return
       }
 
-      const anchored = positionsRef.current[windowItem.id] ?? {
-        x: windowItem.x,
-        y: windowItem.y,
-      }
-      const measured = sizesRef.current[windowItem.id] ?? {
-        width: windowItem.width,
-        height: windowItem.height,
-      }
-
       resizeState.current = {
         id: windowItem.id,
         direction,
-        startWidth: measured.width,
-        startHeight: measured.height,
+        minWidth: windowItem.app.manifest.desktopWindow?.minWidth ?? 420,
+        minHeight: windowItem.app.manifest.desktopWindow?.minHeight ?? 280,
+        startWidth: windowItem.width,
+        startHeight: windowItem.height,
         startX: event.clientX,
         startY: event.clientY,
-        startWindowX: anchored.x,
-        startWindowY: anchored.y,
+        startWindowX: windowItem.x,
+        startWindowY: windowItem.y,
       }
       onFocus(windowItem.id)
       event.preventDefault()
@@ -140,13 +139,21 @@ export function DesktopWindowLayer({
 
       const activeResize = resizeState.current
       if (activeResize) {
-        const minWidth = 420
-        const minHeight = 280
+        const workspaceBounds = getDesktopWindowWorkspaceBounds({
+          deadZone,
+          safeArea,
+          topInset,
+          viewportSize: workspaceSize,
+        })
+        const minLeft = workspaceBounds.minX
+        const maxRight = workspaceBounds.maxRight
+        const maxBottom = workspaceBounds.maxBottom
+        const maxWidth = workspaceBounds.maxWidth
+        const maxHeight = workspaceBounds.maxHeight
+        const minWidth = Math.min(activeResize.minWidth, maxWidth)
+        const minHeight = Math.min(activeResize.minHeight, maxHeight)
         const deltaX = event.clientX - activeResize.startX
         const deltaY = event.clientY - activeResize.startY
-        const maxRight = layerRect.width - 24
-        const maxBottom =
-          layerRect.height - safeArea.bottom - deadZone.bottom - 8
         let nextX = activeResize.startWindowX
         let nextWidth = activeResize.startWidth
         let nextHeight = activeResize.startHeight
@@ -166,7 +173,7 @@ export function DesktopWindowLayer({
           activeResize.direction === 'bottom-left'
         ) {
           nextX = Math.min(
-            Math.max(24, activeResize.startWindowX + deltaX),
+            Math.max(minLeft, activeResize.startWindowX + deltaX),
             activeResize.startWindowX + activeResize.startWidth - minWidth,
           )
           nextWidth =
@@ -184,73 +191,52 @@ export function DesktopWindowLayer({
           )
         }
 
-        if (
-          activeResize.direction === 'left' ||
+        onGeometryChange(activeResize.id, {
+          ...(activeResize.direction === 'left' ||
           activeResize.direction === 'bottom-left'
-        ) {
-          setPositions((prev) => {
-            const next = {
-              ...prev,
-              [activeResize.id]: {
+            ? {
                 x: nextX,
                 y: activeResize.startWindowY,
-              },
-            }
-            positionsRef.current = next
-            return next
-          })
-        }
-
-        setSizes((prev) => {
-          const next = {
-            ...prev,
-            [activeResize.id]: {
-              width: nextWidth,
-              height: nextHeight,
-            },
-          }
-          sizesRef.current = next
-          return next
+              }
+            : undefined),
+          width: nextWidth,
+          height: nextHeight,
         })
         return
       }
 
       const activeDrag = dragState.current
       if (activeDrag) {
-        const draggingWindow = windows.find(
+        const draggingWindow = windowsRef.current.find(
           (windowItem) => windowItem.id === activeDrag.id,
         )
-        const measured = draggingWindow
-          ? sizesRef.current[draggingWindow.id] ?? {
-              width: draggingWindow.width,
-              height: draggingWindow.height,
-            }
-          : { width: 540, height: 380 }
-        const maxX = Math.max(24, layerRect.width - measured.width - 24)
-        const maxY = Math.max(
-          topInset + 8,
-          layerRect.height - measured.height - safeArea.bottom - deadZone.bottom - 8,
+        const measured = draggingWindow ?? { width: 540, height: 380 }
+        const workspaceBounds = getDesktopWindowWorkspaceBounds({
+          deadZone,
+          safeArea,
+          topInset,
+          viewportSize: workspaceSize,
+        })
+        const positionBounds = getDesktopWindowPositionBounds(
+          workspaceBounds,
+          measured,
         )
 
         const nextX = Math.min(
-          Math.max(24, event.clientX - layerRect.left - activeDrag.offsetX),
-          maxX,
+          Math.max(
+            positionBounds.minX,
+            event.clientX - layerRect.left - activeDrag.offsetX,
+          ),
+          positionBounds.maxX,
         )
         const nextY = Math.min(
           Math.max(
-            topInset + 8,
+            positionBounds.minY,
             event.clientY - layerRect.top - activeDrag.offsetY,
           ),
-          maxY,
+          positionBounds.maxY,
         )
-        setPositions((prev) => {
-          const next = {
-            ...prev,
-            [activeDrag.id]: { x: nextX, y: nextY },
-          }
-          positionsRef.current = next
-          return next
-        })
+        onGeometryChange(activeDrag.id, { x: nextX, y: nextY })
       }
     }
 
@@ -268,41 +254,18 @@ export function DesktopWindowLayer({
       window.removeEventListener('pointerup', handleUp)
       window.removeEventListener('pointercancel', handleUp)
     }
-  }, [deadZone.bottom, onFocus, safeArea.bottom, topInset, windows, workspaceSize.height, workspaceSize.width])
-
-  useEffect(() => {
-    setPositions((prev) => {
-      const next = { ...prev }
-      windows.forEach((windowItem) => {
-        next[windowItem.id] ??= { x: windowItem.x, y: windowItem.y }
-      })
-      positionsRef.current = next
-      return next
-    })
-    setSizes((prev) => {
-      const next = { ...prev }
-      windows.forEach((windowItem) => {
-        next[windowItem.id] ??= {
-          width: windowItem.width,
-          height: windowItem.height,
-        }
-      })
-      sizesRef.current = next
-      return next
-    })
-  }, [windows])
+  }, [
+    deadZone,
+    onFocus,
+    onGeometryChange,
+    safeArea,
+    topInset,
+    workspaceSize,
+  ])
 
   return (
     <div ref={layerRef} className="pointer-events-none absolute inset-0 z-30">
       {windows.map((windowItem) => {
-        const anchored = positions[windowItem.id] ?? {
-          x: windowItem.x,
-          y: windowItem.y,
-        }
-        const measured = sizes[windowItem.id] ?? {
-          width: windowItem.width,
-          height: windowItem.height,
-        }
         const isMaximized = windowItem.state === 'maximized'
         const isFront = windowItem.zIndex === topZIndex
 
@@ -320,8 +283,8 @@ export function DesktopWindowLayer({
             }
             style={{
               zIndex: windowItem.zIndex,
-              left: isMaximized ? safeArea.left + deadZone.left + 12 : anchored.x,
-              top: isMaximized ? topInset + 12 : anchored.y,
+              left: isMaximized ? safeArea.left + deadZone.left + 12 : windowItem.x,
+              top: isMaximized ? topInset + 12 : windowItem.y,
               width: isMaximized
                 ? workspaceSize.width -
                   safeArea.left -
@@ -329,10 +292,10 @@ export function DesktopWindowLayer({
                   safeArea.right -
                   deadZone.right -
                   24
-                : measured.width,
+                : windowItem.width,
               height: isMaximized
                 ? workspaceSize.height - topInset - safeArea.bottom - deadZone.bottom - 24
-                : measured.height,
+                : windowItem.height,
               transform: isFront ? 'translateY(0)' : 'translateY(4px)',
             }}
             themeMode={themeMode}
