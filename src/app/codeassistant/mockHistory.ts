@@ -7,6 +7,7 @@ import type {
   ConversationStatusType,
   MessageDeliveryStatus,
   MessageObject,
+  MsgContent,
 } from '../messagehub/protocol/msgobj'
 import {
   getMockEntityDid,
@@ -17,8 +18,9 @@ import {
 const codeAssistantEntityId = 'agent-coder'
 const storageNamespace = 'buckyos.mock.codeassistant.history'
 const databaseName = 'buckyos-mock-message-history'
-const storageVersion = 'v3'
+const storageVersion = 'v4'
 const defaultPageSize = 40
+const trustedImageUri = 'https://upload.wikimedia.org/wikipedia/commons/9/95/Museo_di_Santa_Giulia_Coro_delle_Monache_Deposizione_Paolo_da_Caylina_Brescia.jpg'
 
 const writerDid = MOCK_SELF_DID
 const assistantDid = getMockEntityDid(codeAssistantEntityId)
@@ -95,6 +97,18 @@ const diagnosticBlocks = [
     '```',
     '这里我会保留原有 fallback，但把决策点收敛到同一个模块里，避免多处分叉。',
   ].join('\n'),
+]
+
+const userImageCaptions = [
+  '我把需要对照的参考图贴在这里，你顺便确认一下图片消息在长历史里滚动时是否稳定。',
+  '这张图先挂进上下文里，后面如果要继续做图文混排，可以直接沿用同一套 refs 结构。',
+  '这里插一条图片消息，主要是为了压一下虚拟列表和图片高度测量这条路径。',
+]
+
+const assistantImageCaptions = [
+  '我把参考图重新贴一遍，方便你直接在当前线程里验证图片消息的渲染和滚动表现。',
+  '这一条改成图片消息，主要用于观察长列表里图片卡片和普通文本卡片混排时的性能。',
+  '补一条带可信域 uri_hint 的图片样本，这样可以直接覆盖自动预览路径。',
 ]
 
 export async function createCodeAssistantMockReaders(): Promise<Record<string, AppendableConversationMessageReader>> {
@@ -193,16 +207,35 @@ function buildThread({
   for (let index = 0; index < iterationCount; index += 1) {
     currentAtMs += computeGapMs(index)
 
-    messages.push(createChatMessage({
-      id: `${sessionId}:u:${index}`,
-      from: writerDid,
-      to: [assistantDid],
-      senderName: 'You',
-      content: buildUserPrompt(topic, index),
-      createdAtMs: currentAtMs,
-      deliveryStatus: 'read',
-      sessionId,
-    }))
+    const userContent = buildUserPrompt(topic, index)
+    messages.push(
+      shouldUseImageMessage(index, 'user')
+        ? createImageMessage({
+          id: `${sessionId}:u:image:${index}`,
+          from: writerDid,
+          to: [assistantDid],
+          senderName: 'You',
+          content: buildImageCaption({
+            topic,
+            index,
+            sender: 'user',
+            fallback: userContent,
+          }),
+          createdAtMs: currentAtMs,
+          deliveryStatus: 'read',
+          sessionId,
+        })
+        : createChatMessage({
+          id: `${sessionId}:u:${index}`,
+          from: writerDid,
+          to: [assistantDid],
+          senderName: 'You',
+          content: userContent,
+          createdAtMs: currentAtMs,
+          deliveryStatus: 'read',
+          sessionId,
+        }),
+    )
 
     if (includeStatus && index % 5 === 2) {
       currentAtMs += 45_000
@@ -220,16 +253,35 @@ function buildThread({
 
     currentAtMs += 4 * 60_000
 
-    messages.push(createChatMessage({
-      id: `${sessionId}:a:${index}`,
-      from: assistantDid,
-      to: [writerDid],
-      senderName: 'CodeAssistant',
-      content: buildAssistantReply(topic, index),
-      createdAtMs: currentAtMs,
-      deliveryStatus: index > iterationCount - 4 ? 'delivered' : undefined,
-      sessionId,
-    }))
+    const assistantContent = buildAssistantReply(topic, index)
+    messages.push(
+      shouldUseImageMessage(index, 'assistant')
+        ? createImageMessage({
+          id: `${sessionId}:a:image:${index}`,
+          from: assistantDid,
+          to: [writerDid],
+          senderName: 'CodeAssistant',
+          content: buildImageCaption({
+            topic,
+            index,
+            sender: 'assistant',
+            fallback: assistantContent,
+          }),
+          createdAtMs: currentAtMs,
+          deliveryStatus: index > iterationCount - 4 ? 'delivered' : undefined,
+          sessionId,
+        })
+        : createChatMessage({
+          id: `${sessionId}:a:${index}`,
+          from: assistantDid,
+          to: [writerDid],
+          senderName: 'CodeAssistant',
+          content: assistantContent,
+          createdAtMs: currentAtMs,
+          deliveryStatus: index > iterationCount - 4 ? 'delivered' : undefined,
+          sessionId,
+        }),
+    )
 
     if (includeStatus && index % 9 === 4) {
       currentAtMs += 90_000
@@ -379,7 +431,75 @@ function computeGapMs(index: number) {
   return (14 + (index % 5) * 7) * 60_000
 }
 
+function shouldUseImageMessage(
+  index: number,
+  sender: 'user' | 'assistant',
+) {
+  return sender === 'assistant'
+    ? index % 6 === 1
+    : index % 6 === 4
+}
+
+function buildImageCaption({
+  topic,
+  index,
+  sender,
+  fallback,
+}: {
+  topic: string
+  index: number
+  sender: 'user' | 'assistant'
+  fallback: string
+}) {
+  const seed = sender === 'assistant'
+    ? assistantImageCaptions[index % assistantImageCaptions.length]
+    : userImageCaptions[index % userImageCaptions.length]
+
+  return [
+    seed,
+    `当前主题：${topic}。`,
+    fallback,
+  ].join('\n\n')
+}
+
 function createChatMessage({
+  id,
+  from,
+  to,
+  senderName,
+  content,
+  createdAtMs,
+  deliveryStatus,
+  sessionId,
+  contentOverride,
+}: {
+  id: string
+  from: string
+  to: string[]
+  senderName: string
+  content: string
+  createdAtMs: number
+  deliveryStatus?: MessageDeliveryStatus
+  sessionId: string
+  contentOverride?: MsgContent
+}): MessageObject {
+  return {
+    from,
+    to,
+    kind: 'chat',
+    created_at_ms: createdAtMs,
+    content: contentOverride ?? {
+      format: 'text/plain',
+      content,
+    },
+    ui_message_id: id,
+    ui_sender_name: senderName,
+    ui_delivery_status: deliveryStatus,
+    ui_session_id: sessionId,
+  }
+}
+
+function createImageMessage({
   id,
   from,
   to,
@@ -397,21 +517,32 @@ function createChatMessage({
   createdAtMs: number
   deliveryStatus?: MessageDeliveryStatus
   sessionId: string
-}): MessageObject {
-  return {
+}) {
+  return createChatMessage({
+    id,
     from,
     to,
-    kind: 'chat',
-    created_at_ms: createdAtMs,
-    content: {
-      format: 'text/plain',
+    senderName,
+    content,
+    createdAtMs,
+    deliveryStatus,
+    sessionId,
+    contentOverride: {
+      format: 'application/octet-stream',
       content,
+      refs: [
+        {
+          role: 'input',
+          label: 'Museo di Santa Giulia',
+          target: {
+            type: 'data_obj',
+            obj_id: `${id}:image-ref`,
+            uri_hint: trustedImageUri,
+          },
+        },
+      ],
     },
-    ui_message_id: id,
-    ui_sender_name: senderName,
-    ui_delivery_status: deliveryStatus,
-    ui_session_id: sessionId,
-  }
+  })
 }
 
 function createStatusMessage({

@@ -1,9 +1,10 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useMediaQuery } from '@mui/material'
 import { MessageSquare } from 'lucide-react'
 import { useI18n } from '../../i18n/provider'
 import { ConversationView } from './ConversationView'
 import { InMemoryConversationMessageReader } from './conversation/history/data-source'
+import type { AppendableConversationMessageReader } from './conversation/history/types'
 import { EntityDetails } from './EntityDetails'
 import { EntityList } from './EntityList'
 import {
@@ -15,6 +16,7 @@ import {
   mockSessions,
 } from './mock/data'
 import { SessionSidebar } from './SessionSidebar'
+import { createCodeAssistantMockReaders } from '../codeassistant/mockHistory'
 import type {
   EntityFilter,
   MobileView,
@@ -71,9 +73,26 @@ export function MessageHubView({
   )
   const [showSessionSidebar, setShowSessionSidebar] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
-  const [localReaders, setLocalReaders] = useState<Record<string, InMemoryConversationMessageReader>>(
+  const [localReaders, setLocalReaders] = useState<Record<string, AppendableConversationMessageReader>>(
     () => ({ ...mockMessageReaders }),
   )
+
+  useEffect(() => {
+    let cancelled = false
+
+    void createCodeAssistantMockReaders().then((readers) => {
+      if (!cancelled) {
+        setLocalReaders((prev) => ({
+          ...prev,
+          ...readers,
+        }))
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const selectedEntity = useMemo(
     () => findEntityById(selectedEntityId),

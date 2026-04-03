@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button, TextField } from '@mui/material'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { MetricCard, PanelIntro } from '../../components/AppPanelPrimitives'
 import { useI18n } from '../../i18n/provider'
@@ -10,6 +10,7 @@ import {
   type SystemPreferencesInput,
 } from '../../models/ui'
 import type { AppContentLoaderProps } from '../types'
+import { beginSiteDataReset } from './siteDataReset'
 
 export function SettingsAppPanel({
   layoutState,
@@ -40,6 +41,7 @@ export function SettingsAppPanel({
   const runtimeLabel = t(`runtime.${runtimeContainer}`, runtimeContainer)
   const themeLabel = t(themeMode === 'light' ? 'common.light' : 'common.dark')
   const { deadZone } = layoutState
+  const [isResettingSiteData, setIsResettingSiteData] = useState(false)
 
   return (
     <form
@@ -124,6 +126,32 @@ export function SettingsAppPanel({
               <div className="rounded-2xl bg-[color:color-mix(in_srgb,var(--cp-surface)_82%,transparent)] px-3 py-2">
                 {t('settings.deadZoneRight')} <span className="font-semibold text-[color:var(--cp-text)]">{deadZone.right}</span>
               </div>
+            </div>
+          </div>
+          <div className="shell-subtle-panel px-4 py-4">
+            <p className="shell-kicker">
+              {t('settings.testingDataKicker', 'Testing Data')}
+            </p>
+            <p className="mt-3 text-sm leading-6 text-[color:var(--cp-muted)]">
+              {t(
+                'settings.testingDataBody',
+                'Clear all site-level test data, including LocalStorage, SessionStorage, cookies, caches, and IndexedDB, then reload the page to rebuild mock state.',
+              )}
+            </p>
+            <div className="mt-4 flex justify-end">
+              <Button
+                type="button"
+                color="error"
+                disabled={isResettingSiteData}
+                onClick={() => {
+                  setIsResettingSiteData(true)
+                  beginSiteDataReset()
+                }}
+              >
+                {isResettingSiteData
+                  ? t('settings.testingDataResetting', 'Resetting...')
+                  : t('settings.testingDataReset', 'Reset Site Test Data')}
+              </Button>
             </div>
           </div>
         </div>
