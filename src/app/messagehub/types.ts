@@ -1,10 +1,3 @@
-/**
- * MessageHub UI DataModel
- *
- * Inspired by buckyos msg_center_client.rs but designed for UI needs.
- * Not a 1:1 mapping — shaped by what the UI actually renders.
- */
-
 /* ── Entity ── */
 
 export type EntityType = 'person' | 'agent' | 'group' | 'service'
@@ -52,36 +45,6 @@ export interface Session {
   isActive: boolean
   lastActiveAt: number
   unreadCount: number
-}
-
-/* ── Message ── */
-
-export type MessageRole = 'user' | 'assistant' | 'system'
-export type MessageContentType = 'text' | 'image' | 'file' | 'status' | 'rich_text'
-export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed'
-
-export interface Message {
-  id: string
-  sessionId: string
-  role: MessageRole
-  senderName: string
-  senderAvatar?: string
-  contentType: MessageContentType
-  content: string
-  /** Rich content payload (images, files, etc.) */
-  attachments?: MessageAttachment[]
-  timestamp: number
-  status?: MessageStatus
-  /** For status-type messages */
-  statusLabel?: string
-}
-
-export interface MessageAttachment {
-  type: 'image' | 'file'
-  url: string
-  name: string
-  size?: number
-  mimeType?: string
 }
 
 /* ── Entity Details ── */

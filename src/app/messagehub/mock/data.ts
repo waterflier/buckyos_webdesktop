@@ -1,9 +1,13 @@
 import type {
   Entity,
   Session,
-  Message,
   EntityDetail,
 } from '../types'
+import { InMemoryConversationMessageReader } from '../conversation/history/data-source'
+import type {
+  MessageDeliveryStatus,
+  MessageObject,
+} from '../protocol/msgobj'
 
 /* ── Entities ── */
 
@@ -297,207 +301,334 @@ export const mockSessions: Record<string, Session[]> = {
 
 /* ── Messages ── */
 
-export const mockMessages: Record<string, Message[]> = {
+export const MOCK_SELF_DID = 'did:buckyos:user:self'
+
+const mockEntityDids: Record<string, string> = {
+  'agent-coder': 'did:buckyos:agent:codeassistant',
+  'person-alice': 'did:buckyos:person:alice',
+  'group-team': 'did:buckyos:group:product-team',
+  'person-bob': 'did:buckyos:person:bob',
+}
+
+const participantDids = {
+  you: MOCK_SELF_DID,
+  codeAssistant: mockEntityDids['agent-coder'],
+  alice: mockEntityDids['person-alice'],
+  bob: mockEntityDids['person-bob'],
+  carol: 'did:buckyos:person:carol',
+  dave: 'did:buckyos:person:dave',
+} as const
+
+export function getMockEntityDid(entityId: string) {
+  return mockEntityDids[entityId] ?? `did:buckyos:entity:${entityId}`
+}
+
+export function createOutgoingMockMessage({
+  sessionId,
+  entityId,
+  content,
+  createdAtMs = Date.now(),
+}: {
+  sessionId: string
+  entityId: string
+  content: string
+  createdAtMs?: number
+}): MessageObject {
+  return createChatMessage({
+    id: `msg-local-${createdAtMs}`,
+    from: MOCK_SELF_DID,
+    to: [getMockEntityDid(entityId)],
+    senderName: 'You',
+    content,
+    createdAtMs,
+    deliveryStatus: 'sent',
+    sessionId,
+  })
+}
+
+const mockMessageSeeds: Record<string, readonly MessageObject[]> = {
   'session-coder-1': [
-    {
+    createChatMessage({
       id: 'msg-c1-1',
-      sessionId: 'session-coder-1',
-      role: 'user',
+      from: participantDids.you,
+      to: [participantDids.codeAssistant],
       senderName: 'You',
-      contentType: 'text',
       content: 'Can you refactor the auth middleware to use the new token validation?',
-      timestamp: Date.now() - 30 * 60_000,
-      status: 'read',
-    },
-    {
+      createdAtMs: Date.now() - 30 * 60_000,
+      deliveryStatus: 'read',
+      sessionId: 'session-coder-1',
+    }),
+    createChatMessage({
       id: 'msg-c1-2',
-      sessionId: 'session-coder-1',
-      role: 'assistant',
+      from: participantDids.codeAssistant,
+      to: [participantDids.you],
       senderName: 'CodeAssistant',
-      contentType: 'text',
       content: 'Sure! I\'ll start by analyzing the current auth middleware structure and identify all the places where token validation happens.\n\nHere\'s my plan:\n1. Replace the legacy `validateToken()` calls with the new `verifyJWT()` method\n2. Add proper error handling for expired tokens\n3. Update the refresh token logic\n4. Add unit tests for the new flow',
-      timestamp: Date.now() - 28 * 60_000,
-      status: 'read',
-    },
-    {
+      createdAtMs: Date.now() - 28 * 60_000,
+      sessionId: 'session-coder-1',
+    }),
+    createStatusMessage({
       id: 'msg-c1-3',
-      sessionId: 'session-coder-1',
-      role: 'assistant',
+      from: participantDids.codeAssistant,
+      to: [participantDids.you],
       senderName: 'CodeAssistant',
-      contentType: 'status',
-      content: 'Working on auth middleware refactor...',
-      statusLabel: 'processing',
-      timestamp: Date.now() - 25 * 60_000,
-      status: 'read',
-    },
-    {
+      label: 'Working on auth middleware refactor...',
+      statusType: 'processing',
+      createdAtMs: Date.now() - 25 * 60_000,
+      sessionId: 'session-coder-1',
+    }),
+    createChatMessage({
       id: 'msg-c1-4',
-      sessionId: 'session-coder-1',
-      role: 'assistant',
+      from: participantDids.codeAssistant,
+      to: [participantDids.you],
       senderName: 'CodeAssistant',
-      contentType: 'text',
       content: 'Done! Here\'s a summary of changes:\n\n- Replaced `validateToken()` with `verifyJWT()` in 4 files\n- Added automatic token refresh on 401 responses\n- Added 12 new unit tests, all passing\n- Updated the middleware chain order for better performance\n\nThe PR is ready for review.',
-      timestamp: Date.now() - 10 * 60_000,
-      status: 'read',
-    },
-    {
+      createdAtMs: Date.now() - 10 * 60_000,
+      sessionId: 'session-coder-1',
+    }),
+    createChatMessage({
       id: 'msg-c1-5',
-      sessionId: 'session-coder-1',
-      role: 'user',
+      from: participantDids.you,
+      to: [participantDids.codeAssistant],
       senderName: 'You',
-      contentType: 'text',
       content: 'Great work! Can you also update the session management?',
-      timestamp: Date.now() - 5 * 60_000,
-      status: 'read',
-    },
-    {
-      id: 'msg-c1-6',
+      createdAtMs: Date.now() - 5 * 60_000,
+      deliveryStatus: 'read',
       sessionId: 'session-coder-1',
-      role: 'assistant',
+    }),
+    createChatMessage({
+      id: 'msg-c1-6',
+      from: participantDids.codeAssistant,
+      to: [participantDids.you],
       senderName: 'CodeAssistant',
-      contentType: 'text',
       content: 'I\'ve finished refactoring the auth module. Ready for review.',
-      timestamp: Date.now() - 2 * 60_000,
-      status: 'delivered',
-    },
+      createdAtMs: Date.now() - 2 * 60_000,
+      deliveryStatus: 'delivered',
+      sessionId: 'session-coder-1',
+    }),
   ],
   'session-alice-1': [
-    {
+    createChatMessage({
       id: 'msg-a1-1',
-      sessionId: 'session-alice-1',
-      role: 'assistant',
+      from: participantDids.alice,
+      to: [participantDids.you],
       senderName: 'Alice',
-      contentType: 'text',
       content: 'Hey! Are you coming to the design review meeting?',
-      timestamp: Date.now() - 2 * 3600_000,
-    },
-    {
+      createdAtMs: Date.now() - 2 * 3600_000,
+      sessionId: 'session-alice-1',
+    }),
+    createChatMessage({
       id: 'msg-a1-2',
-      sessionId: 'session-alice-1',
-      role: 'user',
+      from: participantDids.you,
+      to: [participantDids.alice],
       senderName: 'You',
-      contentType: 'text',
       content: 'Yes, I\'ll be there! Do I need to prepare anything?',
-      timestamp: Date.now() - 1.5 * 3600_000,
-      status: 'read',
-    },
-    {
+      createdAtMs: Date.now() - 1.5 * 3600_000,
+      deliveryStatus: 'read',
+      sessionId: 'session-alice-1',
+    }),
+    createChatMessage({
       id: 'msg-a1-3',
-      sessionId: 'session-alice-1',
-      role: 'assistant',
+      from: participantDids.alice,
+      to: [participantDids.you],
       senderName: 'Alice',
-      contentType: 'text',
       content: 'Just bring the latest mockups for the dashboard. I\'ll handle the rest.',
-      timestamp: Date.now() - 1 * 3600_000,
-    },
-    {
+      createdAtMs: Date.now() - 1 * 3600_000,
+      sessionId: 'session-alice-1',
+    }),
+    createChatMessage({
       id: 'msg-a1-4',
-      sessionId: 'session-alice-1',
-      role: 'user',
+      from: participantDids.you,
+      to: [participantDids.alice],
       senderName: 'You',
-      contentType: 'text',
       content: 'Got it, I\'ll prepare the mockups 👍',
-      timestamp: Date.now() - 50 * 60_000,
-      status: 'read',
-    },
-    {
-      id: 'msg-a1-5',
+      createdAtMs: Date.now() - 50 * 60_000,
+      deliveryStatus: 'read',
       sessionId: 'session-alice-1',
-      role: 'assistant',
+    }),
+    createChatMessage({
+      id: 'msg-a1-5',
+      from: participantDids.alice,
+      to: [participantDids.you],
       senderName: 'Alice',
-      contentType: 'text',
       content: 'Have you checked the latest design draft?',
-      timestamp: Date.now() - 15 * 60_000,
-    },
+      createdAtMs: Date.now() - 15 * 60_000,
+      sessionId: 'session-alice-1',
+    }),
   ],
   'session-team-1': [
-    {
+    createChatMessage({
       id: 'msg-t1-1',
-      sessionId: 'session-team-1',
-      role: 'assistant',
+      from: participantDids.dave,
+      to: [getMockEntityDid('group-team')],
       senderName: 'Dave',
-      contentType: 'text',
       content: 'Morning everyone! Quick update: the CI pipeline is now stable.',
-      timestamp: Date.now() - 3 * 3600_000,
-    },
-    {
+      createdAtMs: Date.now() - 3 * 3600_000,
+      kind: 'group_msg',
+      sessionId: 'session-team-1',
+    }),
+    createChatMessage({
       id: 'msg-t1-2',
-      sessionId: 'session-team-1',
-      role: 'assistant',
+      from: participantDids.alice,
+      to: [getMockEntityDid('group-team')],
       senderName: 'Alice',
-      contentType: 'text',
       content: 'Nice! I just pushed the new onboarding flow to staging.',
-      timestamp: Date.now() - 2.5 * 3600_000,
-    },
-    {
+      createdAtMs: Date.now() - 2.5 * 3600_000,
+      kind: 'group_msg',
+      sessionId: 'session-team-1',
+    }),
+    createChatMessage({
       id: 'msg-t1-3',
-      sessionId: 'session-team-1',
-      role: 'user',
+      from: participantDids.you,
+      to: [getMockEntityDid('group-team')],
       senderName: 'You',
-      contentType: 'text',
       content: 'I\'ll review the onboarding flow after lunch.',
-      timestamp: Date.now() - 2 * 3600_000,
-      status: 'read',
-    },
-    {
+      createdAtMs: Date.now() - 2 * 3600_000,
+      deliveryStatus: 'read',
+      kind: 'group_msg',
+      sessionId: 'session-team-1',
+    }),
+    createChatMessage({
       id: 'msg-t1-4',
-      sessionId: 'session-team-1',
-      role: 'assistant',
+      from: participantDids.carol,
+      to: [getMockEntityDid('group-team')],
       senderName: 'Carol',
-      contentType: 'text',
       content: 'Shared the updated design tokens in the Figma file. Please check!',
-      timestamp: Date.now() - 1 * 3600_000,
-    },
-    {
-      id: 'msg-t1-5',
+      createdAtMs: Date.now() - 1 * 3600_000,
+      kind: 'group_msg',
       sessionId: 'session-team-1',
-      role: 'assistant',
+    }),
+    createChatMessage({
+      id: 'msg-t1-5',
+      from: participantDids.bob,
+      to: [getMockEntityDid('group-team')],
       senderName: 'Bob',
-      contentType: 'text',
       content: 'Sprint review at 3pm today. Don\'t forget!',
-      timestamp: Date.now() - 30 * 60_000,
-    },
+      createdAtMs: Date.now() - 30 * 60_000,
+      kind: 'group_msg',
+      sessionId: 'session-team-1',
+    }),
   ],
   'session-bob-1': [
-    {
+    createChatMessage({
       id: 'msg-b1-1',
-      sessionId: 'session-bob-1',
-      role: 'assistant',
+      from: participantDids.bob,
+      to: [participantDids.you],
       senderName: 'Bob',
-      contentType: 'text',
       content: 'Hey, can you check the deployment logs? Seeing some errors.',
-      timestamp: Date.now() - 2 * 3600_000,
-    },
-    {
+      createdAtMs: Date.now() - 2 * 3600_000,
+      sessionId: 'session-bob-1',
+    }),
+    createChatMessage({
       id: 'msg-b1-2',
-      sessionId: 'session-bob-1',
-      role: 'user',
+      from: participantDids.you,
+      to: [participantDids.bob],
       senderName: 'You',
-      contentType: 'text',
       content: 'Looking into it now. Seems like a config issue with the new env vars.',
-      timestamp: Date.now() - 1.5 * 3600_000,
-      status: 'read',
-    },
-    {
+      createdAtMs: Date.now() - 1.5 * 3600_000,
+      deliveryStatus: 'read',
+      sessionId: 'session-bob-1',
+    }),
+    createChatMessage({
       id: 'msg-b1-3',
-      sessionId: 'session-bob-1',
-      role: 'assistant',
+      from: participantDids.bob,
+      to: [participantDids.you],
       senderName: 'Bob',
-      contentType: 'text',
       content: 'Ah makes sense. The staging env was updated yesterday. Did you sync it?',
-      timestamp: Date.now() - 1.2 * 3600_000,
-    },
-    {
-      id: 'msg-b1-4',
+      createdAtMs: Date.now() - 1.2 * 3600_000,
       sessionId: 'session-bob-1',
-      role: 'user',
+    }),
+    createChatMessage({
+      id: 'msg-b1-4',
+      from: participantDids.you,
+      to: [participantDids.bob],
       senderName: 'You',
-      contentType: 'text',
       content: 'Got it, I\'ll push the fix tonight.',
-      timestamp: Date.now() - 3600_000,
-      status: 'read',
-    },
+      createdAtMs: Date.now() - 3600_000,
+      deliveryStatus: 'read',
+      sessionId: 'session-bob-1',
+    }),
   ],
+}
+
+export const mockMessageReaders = Object.fromEntries(
+  Object.entries(mockMessageSeeds).map(([sessionId, messages]) => [
+    sessionId,
+    InMemoryConversationMessageReader.fromMessages(messages),
+  ]),
+) as Record<string, InMemoryConversationMessageReader>
+
+function createChatMessage({
+  id,
+  from,
+  to,
+  senderName,
+  content,
+  createdAtMs,
+  deliveryStatus,
+  kind = 'chat',
+  sessionId,
+}: {
+  id: string
+  from: string
+  to: string[]
+  senderName: string
+  content: string
+  createdAtMs: number
+  deliveryStatus?: MessageDeliveryStatus
+  kind?: 'chat' | 'group_msg'
+  sessionId: string
+}): MessageObject {
+  return {
+    from,
+    to,
+    kind,
+    created_at_ms: createdAtMs,
+    content: {
+      format: 'text/plain',
+      content,
+    },
+    ui_message_id: id,
+    ui_sender_name: senderName,
+    ui_delivery_status: deliveryStatus,
+    ui_session_id: sessionId,
+  }
+}
+
+function createStatusMessage({
+  id,
+  from,
+  to,
+  senderName,
+  label,
+  statusType,
+  createdAtMs,
+  sessionId,
+}: {
+  id: string
+  from: string
+  to: string[]
+  senderName: string
+  label: string
+  statusType: 'typing' | 'processing' | 'disconnected' | 'info'
+  createdAtMs: number
+  sessionId: string
+}): MessageObject {
+  return {
+    from,
+    to,
+    kind: 'notify',
+    created_at_ms: createdAtMs,
+    content: {
+      format: 'text/plain',
+      content: label,
+    },
+    ui_item_kind: 'status',
+    ui_message_id: id,
+    ui_sender_name: senderName,
+    ui_session_id: sessionId,
+    ui_status_type: statusType,
+  }
 }
 
 /* ── Entity Details ── */

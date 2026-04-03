@@ -1,17 +1,21 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ConversationView } from '../messagehub/ConversationView'
+import { InMemoryConversationMessageReader } from '../messagehub/conversation/history/data-source'
+import type { AppendableConversationMessageReader } from '../messagehub/conversation/history/types'
 import { EntityDetails } from '../messagehub/EntityDetails'
 import {
+  createOutgoingMockMessage,
+  MOCK_SELF_DID,
   mockEntities,
   mockEntityDetails,
-  mockMessages,
   mockSessions,
 } from '../messagehub/mock/data'
 import { SessionSidebar } from '../messagehub/SessionSidebar'
-import type { Message } from '../messagehub/types'
 import type { AppContentLoaderProps } from '../types'
+import { createCodeAssistantMockReaders } from './mockHistory'
 
 const codeAssistantEntityId = 'agent-coder'
+const EMPTY_READER = InMemoryConversationMessageReader.empty()
 
 export function CodeAssistantAppPanel(props: AppContentLoaderProps) {
   void props
@@ -20,9 +24,23 @@ export function CodeAssistantAppPanel(props: AppContentLoaderProps) {
   )
   const [showSessionSidebar, setShowSessionSidebar] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
-  const [localMessages, setLocalMessages] = useState<Record<string, Message[]>>(
-    () => ({ ...mockMessages }),
+  const [localReaders, setLocalReaders] = useState<Record<string, AppendableConversationMessageReader>>(
+    {},
   )
+
+  useEffect(() => {
+    let cancelled = false
+
+    void createCodeAssistantMockReaders().then((readers) => {
+      if (!cancelled) {
+        setLocalReaders(readers)
+      }
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const entity = useMemo(
     () => mockEntities.find((item) => item.id === codeAssistantEntityId) ?? null,
@@ -39,10 +57,10 @@ export function CodeAssistantAppPanel(props: AppContentLoaderProps) {
 
     return sessions.find((session) => session.id === selectedSessionId) ?? sessions[0] ?? null
   }, [selectedSessionId, sessions])
-  const messages = useMemo(() => {
+  const messageReader = useMemo(() => {
     const sessionId = activeSession?.id
-    return sessionId ? localMessages[sessionId] ?? [] : []
-  }, [activeSession, localMessages])
+    return sessionId ? localReaders[sessionId] ?? EMPTY_READER : EMPTY_READER
+  }, [activeSession, localReaders])
   const entityDetail = useMemo(
     () => mockEntityDetails[codeAssistantEntityId] ?? null,
     [],
@@ -53,20 +71,16 @@ export function CodeAssistantAppPanel(props: AppContentLoaderProps) {
       return
     }
 
-    const newMessage: Message = {
-      id: `msg-local-${Date.now()}`,
+    const newMessage = createOutgoingMockMessage({
       sessionId: activeSession.id,
-      role: 'user',
-      senderName: 'You',
-      contentType: 'text',
+      entityId: codeAssistantEntityId,
       content,
-      timestamp: Date.now(),
-      status: 'sent',
-    }
+      createdAtMs: Date.now(),
+    })
 
-    setLocalMessages((prev) => ({
+    setLocalReaders((prev) => ({
       ...prev,
-      [activeSession.id]: [...(prev[activeSession.id] ?? []), newMessage],
+      [activeSession.id]: (prev[activeSession.id] ?? EMPTY_READER).append(newMessage),
     }))
   }, [activeSession])
 
@@ -97,7 +111,8 @@ export function CodeAssistantAppPanel(props: AppContentLoaderProps) {
         <ConversationView
           entity={entity}
           session={activeSession}
-          messages={messages}
+          messageReader={messageReader}
+          selfDid={MOCK_SELF_DID}
           onBack={() => undefined}
           onOpenSessionSidebar={() => setShowSessionSidebar((prev) => !prev)}
           onOpenDetails={() => setShowDetails((prev) => !prev)}

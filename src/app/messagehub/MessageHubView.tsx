@@ -3,20 +3,24 @@ import { useMediaQuery } from '@mui/material'
 import { MessageSquare } from 'lucide-react'
 import { useI18n } from '../../i18n/provider'
 import { ConversationView } from './ConversationView'
+import { InMemoryConversationMessageReader } from './conversation/history/data-source'
 import { EntityDetails } from './EntityDetails'
 import { EntityList } from './EntityList'
 import {
+  createOutgoingMockMessage,
+  MOCK_SELF_DID,
   mockEntities,
   mockEntityDetails,
-  mockMessages,
+  mockMessageReaders,
   mockSessions,
 } from './mock/data'
 import { SessionSidebar } from './SessionSidebar'
 import type {
   EntityFilter,
-  Message,
   MobileView,
 } from './types'
+
+const EMPTY_READER = InMemoryConversationMessageReader.empty()
 
 function findEntityById(id: string | null) {
   if (!id) {
@@ -67,8 +71,8 @@ export function MessageHubView({
   )
   const [showSessionSidebar, setShowSessionSidebar] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
-  const [localMessages, setLocalMessages] = useState<Record<string, Message[]>>(
-    () => ({ ...mockMessages }),
+  const [localReaders, setLocalReaders] = useState<Record<string, InMemoryConversationMessageReader>>(
+    () => ({ ...mockMessageReaders }),
   )
 
   const selectedEntity = useMemo(
@@ -89,10 +93,10 @@ export function MessageHubView({
     return sessions[0] ?? null
   }, [selectedSessionId, sessions])
 
-  const messages = useMemo(() => {
+  const messageReader = useMemo(() => {
     const sessionId = activeSession?.id
-    return sessionId ? localMessages[sessionId] ?? [] : []
-  }, [activeSession, localMessages])
+    return sessionId ? localReaders[sessionId] ?? EMPTY_READER : EMPTY_READER
+  }, [activeSession, localReaders])
 
   const entityDetail = useMemo(
     () => (selectedEntityId ? mockEntityDetails[selectedEntityId] ?? null : null),
@@ -143,26 +147,22 @@ export function MessageHubView({
   }, [])
 
   const handleSendMessage = useCallback((content: string) => {
-    if (!activeSession) {
+    if (!activeSession || !selectedEntityId) {
       return
     }
 
-    const newMessage: Message = {
-      id: `msg-local-${Date.now()}`,
+    const newMessage = createOutgoingMockMessage({
       sessionId: activeSession.id,
-      role: 'user',
-      senderName: 'You',
-      contentType: 'text',
+      entityId: selectedEntityId,
       content,
-      timestamp: Date.now(),
-      status: 'sent',
-    }
+      createdAtMs: Date.now(),
+    })
 
-    setLocalMessages((prev) => ({
+    setLocalReaders((prev) => ({
       ...prev,
-      [activeSession.id]: [...(prev[activeSession.id] ?? []), newMessage],
+      [activeSession.id]: (prev[activeSession.id] ?? EMPTY_READER).append(newMessage),
     }))
-  }, [activeSession])
+  }, [activeSession, selectedEntityId])
 
   if (!isDesktop) {
     return (
@@ -184,7 +184,8 @@ export function MessageHubView({
             <ConversationView
               entity={selectedEntity}
               session={activeSession}
-              messages={messages}
+              messageReader={messageReader}
+              selfDid={MOCK_SELF_DID}
               onBack={handleBack}
               onOpenSessionSidebar={() => setShowSessionSidebar(true)}
               onOpenDetails={handleOpenDetails}
@@ -266,7 +267,8 @@ export function MessageHubView({
           <ConversationView
             entity={selectedEntity}
             session={activeSession}
-            messages={messages}
+            messageReader={messageReader}
+            selfDid={MOCK_SELF_DID}
             onBack={handleBack}
             onOpenSessionSidebar={() => setShowSessionSidebar((prev) => !prev)}
             onOpenDetails={handleOpenDetails}
