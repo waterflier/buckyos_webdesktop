@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator } from '@playwright/test'
 
 function boxesOverlap(
   left: { x: number; y: number; width: number; height: number } | null,
@@ -22,6 +22,15 @@ function visibleLength(
   viewportExtent: number,
 ) {
   return Math.max(0, Math.min(start + size, viewportExtent) - Math.max(start, 0))
+}
+
+async function getScrollMetrics(locator: Locator) {
+  return locator.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+    scrollTop: element.scrollTop,
+    distanceToBottom: element.scrollHeight - element.clientHeight - element.scrollTop,
+  }))
 }
 
 test('desktop flow opens settings window and supports locale switch', async ({
@@ -125,6 +134,15 @@ test('desktop flow opens settings window and supports locale switch', async ({
   expect(Math.abs((reopenedWindow?.width ?? 0) - (windowAfterResize?.width ?? 0))).toBeLessThan(2)
   expect(Math.abs((reopenedWindow?.height ?? 0) - (windowAfterResize?.height ?? 0))).toBeLessThan(2)
 
+  await page.setViewportSize({ width: 960, height: 720 })
+  await expect(page.getByTestId('window-settings')).toBeVisible()
+  const hasOverflowAtDesktopMinimum = await page.evaluate(() => ({
+    horizontal: document.documentElement.scrollWidth > window.innerWidth,
+    vertical: document.documentElement.scrollHeight > window.innerHeight,
+  }))
+  expect(hasOverflowAtDesktopMinimum.horizontal).toBeFalsy()
+  expect(hasOverflowAtDesktopMinimum.vertical).toBeFalsy()
+
   await page.setViewportSize({ width: 780, height: 560 })
   await expect(page.getByTestId('window-settings')).toBeVisible()
   const constrainedWindow = await page.getByTestId('window-settings').boundingBox()
@@ -140,8 +158,8 @@ test('desktop flow opens settings window and supports locale switch', async ({
     horizontal: document.documentElement.scrollWidth > window.innerWidth,
     vertical: document.documentElement.scrollHeight > window.innerHeight,
   }))
-  expect(hasPageOverflow.horizontal).toBeTruthy()
-  expect(hasPageOverflow.vertical).toBeTruthy()
+  expect(hasPageOverflow.horizontal).toBeFalsy()
+  expect(hasPageOverflow.vertical).toBeFalsy()
 
   await page.setViewportSize({ width: 1280, height: 720 })
   await expect(page.getByTestId('window-settings')).toBeVisible()
@@ -298,4 +316,37 @@ test('window modal only blocks its owner window', async ({ page }) => {
   await page.getByRole('button', { name: 'Apply change' }).click()
   await expect(page.getByRole('dialog', { name: 'Scoped window modal' })).toHaveCount(0)
   await expect(page.getByRole('textbox', { name: 'Owner' })).toHaveValue('Window modal owner')
+})
+
+test('codeassistant history does not jump back to bottom while scrolling older messages', async ({
+  page,
+}) => {
+  await page.goto('/?scenario=normal')
+
+  await page.getByTestId('desktop-app-codeassistant').click()
+  const historyPane = page.locator('[data-testid="window-codeassistant"] .shell-scrollbar').first()
+  await expect(historyPane).toBeVisible()
+
+  await expect.poll(async () => {
+    const { scrollHeight, clientHeight, distanceToBottom } = await getScrollMetrics(historyPane)
+    return scrollHeight > clientHeight ? distanceToBottom : Number.POSITIVE_INFINITY
+  }).toBeLessThanOrEqual(24)
+
+  await historyPane.hover()
+
+  let scrolledMetrics = await getScrollMetrics(historyPane)
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await page.mouse.wheel(0, -1200)
+    await page.waitForTimeout(60)
+    scrolledMetrics = await getScrollMetrics(historyPane)
+    if (scrolledMetrics.distanceToBottom > 600) {
+      break
+    }
+  }
+
+  expect(scrolledMetrics.distanceToBottom).toBeGreaterThan(600)
+
+  await page.waitForTimeout(900)
+  const settledMetrics = await getScrollMetrics(historyPane)
+  expect(settledMetrics.distanceToBottom).toBeGreaterThan(600)
 })

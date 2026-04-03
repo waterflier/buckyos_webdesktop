@@ -54,6 +54,8 @@ export const ConversationHistoryPane = forwardRef<ConversationHistoryPaneHandle,
   const projectionRef = useRef<Awaited<ReturnType<typeof buildConversationProjection>> | null>(null)
   const scrollModeRef = useRef<ScrollMode>('bottom-anchored')
   const bottomAnchorLockUntilRef = useRef(0)
+  const bottomAnchorRequestIdRef = useRef(0)
+  const hasProjection = projection !== null
   const isMobileViewport = viewportWidth > 0 && viewportWidth < 769
   const effectiveViewportHeight = isMobileViewport
     ? Math.round(viewportHeight * 7)
@@ -93,7 +95,7 @@ export const ConversationHistoryPane = forwardRef<ConversationHistoryPaneHandle,
     return () => {
       resizeObserver.disconnect()
     }
-  }, [])
+  }, [hasProjection])
 
   useEffect(() => {
     const element = scrollRef.current
@@ -114,6 +116,7 @@ export const ConversationHistoryPane = forwardRef<ConversationHistoryPaneHandle,
       }
 
       scrollModeRef.current = 'free-scroll'
+      cancelBottomAnchorRequest(bottomAnchorRequestIdRef)
     }
 
     element.addEventListener('scroll', handleScroll, { passive: true })
@@ -122,7 +125,7 @@ export const ConversationHistoryPane = forwardRef<ConversationHistoryPaneHandle,
     return () => {
       element.removeEventListener('scroll', handleScroll)
     }
-  }, [])
+  }, [hasProjection])
 
   useEffect(() => {
     const contentElement = contentRef.current
@@ -141,7 +144,7 @@ export const ConversationHistoryPane = forwardRef<ConversationHistoryPaneHandle,
     return () => {
       resizeObserver.disconnect()
     }
-  }, [projection])
+  }, [hasProjection])
 
   useEffect(() => {
     projectionRef.current = projection
@@ -206,6 +209,7 @@ export const ConversationHistoryPane = forwardRef<ConversationHistoryPaneHandle,
 
     scrollModeRef.current = 'bottom-anchored'
     bottomAnchorLockUntilRef.current = 0
+    cancelBottomAnchorRequest(bottomAnchorRequestIdRef)
     setProjection(null)
     setWindowState(null)
 
@@ -258,7 +262,13 @@ export const ConversationHistoryPane = forwardRef<ConversationHistoryPaneHandle,
 
   useImperativeHandle(ref, () => ({
     scrollToBottom() {
-      requestBottomAnchor(scrollModeRef, bottomAnchorLockUntilRef, scrollRef.current, EXPLICIT_SCROLL_LOCK_MS)
+      requestBottomAnchor(
+        scrollModeRef,
+        bottomAnchorLockUntilRef,
+        bottomAnchorRequestIdRef,
+        scrollRef.current,
+        EXPLICIT_SCROLL_LOCK_MS,
+      )
     },
   }), [])
 
@@ -310,7 +320,12 @@ export const ConversationHistoryPane = forwardRef<ConversationHistoryPaneHandle,
     previousTotalCountRef.current = projection.totalCount
 
     if (previousTotalCount === 0) {
-      requestBottomAnchor(scrollModeRef, bottomAnchorLockUntilRef, scrollRef.current)
+      requestBottomAnchor(
+        scrollModeRef,
+        bottomAnchorLockUntilRef,
+        bottomAnchorRequestIdRef,
+        scrollRef.current,
+      )
       return
     }
 
@@ -318,6 +333,7 @@ export const ConversationHistoryPane = forwardRef<ConversationHistoryPaneHandle,
       requestBottomAnchor(
         scrollModeRef,
         bottomAnchorLockUntilRef,
+        bottomAnchorRequestIdRef,
         scrollRef.current,
         CONTENT_GROWTH_LOCK_MS,
       )
@@ -411,23 +427,48 @@ function stickToBottom(scrollElement: HTMLDivElement | null) {
 function requestBottomAnchor(
   scrollModeRef: { current: ScrollMode },
   bottomAnchorLockUntilRef: { current: number },
+  bottomAnchorRequestIdRef: { current: number },
   scrollElement: HTMLDivElement | null,
   lockMs = 0,
 ) {
   scrollModeRef.current = 'bottom-anchored'
   bottomAnchorLockUntilRef.current = lockMs > 0 ? Date.now() + lockMs : 0
-  scheduleBottomAnchor(scrollElement, [0, 32, 80, 160, 320, 520])
+  const requestId = bottomAnchorRequestIdRef.current + 1
+  bottomAnchorRequestIdRef.current = requestId
+  scheduleBottomAnchor(
+    scrollModeRef,
+    bottomAnchorRequestIdRef,
+    requestId,
+    scrollElement,
+    [0, 32, 80, 160, 320, 520],
+  )
 }
 
 function scheduleBottomAnchor(
+  scrollModeRef: { current: ScrollMode },
+  bottomAnchorRequestIdRef: { current: number },
+  requestId: number,
   scrollElement: HTMLDivElement | null,
   delaysMs: readonly number[],
 ) {
   delaysMs.forEach((delayMs) => {
     window.setTimeout(() => {
+      if (
+        scrollModeRef.current !== 'bottom-anchored'
+        || bottomAnchorRequestIdRef.current !== requestId
+      ) {
+        return
+      }
+
       stickToBottom(scrollElement)
     }, delayMs)
   })
+}
+
+function cancelBottomAnchorRequest(
+  bottomAnchorRequestIdRef: { current: number },
+) {
+  bottomAnchorRequestIdRef.current += 1
 }
 
 function isNearBottom(

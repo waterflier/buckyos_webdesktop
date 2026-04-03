@@ -1175,6 +1175,10 @@ export function DesktopRoute() {
     workspaceSize.height - workspaceTopPadding - resolvedDeadZone.bottom - safeArea.bottom,
     360,
   )
+  const shouldLockDesktopViewport =
+    formFactor === 'desktop' &&
+    viewportSize.width >= desktopMinCanvasSize.width &&
+    viewportSize.height >= desktopMinCanvasSize.height
   const trayState = useMemo<StatusTrayState>(
     () => {
       const statusTips: StatusTip[] = [
@@ -1327,8 +1331,32 @@ export function DesktopRoute() {
   useEffect(() => resetBackground, [resetBackground])
 
   return (
-    <main className="relative isolate min-h-dvh bg-[color:var(--cp-bg)]">
-      <section className="relative z-10 min-h-dvh">
+    <main
+      className="relative isolate bg-[color:var(--cp-bg)]"
+      style={
+        shouldLockDesktopViewport
+          ? {
+              height: '100dvh',
+              overflow: 'hidden',
+            }
+          : {
+              minHeight: '100dvh',
+            }
+      }
+    >
+      <section
+        className="relative z-10"
+        style={
+          shouldLockDesktopViewport
+            ? {
+                height: '100%',
+                overflow: 'hidden',
+              }
+            : {
+                minHeight: '100dvh',
+              }
+        }
+      >
         <div
           ref={workspaceRef}
           className="relative h-dvh min-h-dvh"
