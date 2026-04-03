@@ -23,6 +23,11 @@ import type {
 } from './types'
 
 const DEFAULT_VISIBLE_ITEM_COUNT = 12
+const BOTTOM_ANCHOR_THRESHOLD_PX = 24
+const CONTENT_GROWTH_LOCK_MS = 240
+const EXPLICIT_SCROLL_LOCK_MS = 1500
+
+type ScrollMode = 'bottom-anchored' | 'free-scroll'
 
 export interface ConversationHistoryPaneHandle {
   scrollToBottom: () => void
@@ -40,14 +45,15 @@ export const ConversationHistoryPane = forwardRef<ConversationHistoryPaneHandle,
   statusItems,
 }, ref) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
   const [viewportWidth, setViewportWidth] = useState(0)
   const [viewportHeight, setViewportHeight] = useState(0)
   const [projection, setProjection] = useState<Awaited<ReturnType<typeof buildConversationProjection>> | null>(null)
   const [windowState, setWindowState] = useState<ConversationMaterializedWindow | null>(null)
-  const [currentIndex, setCurrentIndex] = useState(0)
   const previousTotalCountRef = useRef(0)
   const projectionRef = useRef<Awaited<ReturnType<typeof buildConversationProjection>> | null>(null)
-  const stickyScrollDeadlineRef = useRef(0)
+  const scrollModeRef = useRef<ScrollMode>('bottom-anchored')
+  const bottomAnchorLockUntilRef = useRef(0)
   const isMobileViewport = viewportWidth > 0 && viewportWidth < 769
   const effectiveViewportHeight = isMobileViewport
     ? Math.round(viewportHeight * 7)
@@ -88,6 +94,54 @@ export const ConversationHistoryPane = forwardRef<ConversationHistoryPaneHandle,
       resizeObserver.disconnect()
     }
   }, [])
+
+  useEffect(() => {
+    const element = scrollRef.current
+    if (!element) {
+      return
+    }
+
+    const handleScroll = () => {
+      const isAnchored = isNearBottom(element, BOTTOM_ANCHOR_THRESHOLD_PX)
+
+      if (isAnchored) {
+        scrollModeRef.current = 'bottom-anchored'
+        return
+      }
+
+      if (Date.now() < bottomAnchorLockUntilRef.current) {
+        return
+      }
+
+      scrollModeRef.current = 'free-scroll'
+    }
+
+    element.addEventListener('scroll', handleScroll, { passive: true })
+    handleScroll()
+
+    return () => {
+      element.removeEventListener('scroll', handleScroll)
+    }
+  }, [])
+
+  useEffect(() => {
+    const contentElement = contentRef.current
+    if (!contentElement) {
+      return
+    }
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (scrollModeRef.current === 'bottom-anchored') {
+        stickToBottom(scrollRef.current)
+      }
+    })
+
+    resizeObserver.observe(contentElement)
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [projection])
 
   useEffect(() => {
     projectionRef.current = projection
@@ -150,6 +204,8 @@ export const ConversationHistoryPane = forwardRef<ConversationHistoryPaneHandle,
       }
     }
 
+    scrollModeRef.current = 'bottom-anchored'
+    bottomAnchorLockUntilRef.current = 0
     setProjection(null)
     setWindowState(null)
 
@@ -160,7 +216,6 @@ export const ConversationHistoryPane = forwardRef<ConversationHistoryPaneHandle,
 
       startTransition(() => {
         setProjection(nextProjection)
-        setCurrentIndex(Math.max(0, nextProjection.totalCount - 1))
       })
     })
 
@@ -203,8 +258,7 @@ export const ConversationHistoryPane = forwardRef<ConversationHistoryPaneHandle,
 
   useImperativeHandle(ref, () => ({
     scrollToBottom() {
-      stickyScrollDeadlineRef.current = Date.now() + 1500
-      scheduleStickToBottom(scrollRef.current, stickyScrollDeadlineRef)
+      requestBottomAnchor(scrollModeRef, bottomAnchorLockUntilRef, scrollRef.current, EXPLICIT_SCROLL_LOCK_MS)
     },
   }), [])
 
@@ -215,15 +269,12 @@ export const ConversationHistoryPane = forwardRef<ConversationHistoryPaneHandle,
 
     const firstVisibleIndex = virtualItems[0].index
     const lastVisibleIndex = virtualItems[virtualItems.length - 1].index
-    const nextCurrentIndex = Math.floor((firstVisibleIndex + lastVisibleIndex) / 2)
     const buffer = visibleItemCount * 2
     const startIndex = Math.max(0, firstVisibleIndex - buffer)
     const endIndex = Math.min(
       projection.totalCount,
       lastVisibleIndex + buffer + visibleItemCount,
     )
-
-    setCurrentIndex(nextCurrentIndex)
 
     if (hasWindowCoverage(windowState, startIndex, endIndex)) {
       return
@@ -254,15 +305,24 @@ export const ConversationHistoryPane = forwardRef<ConversationHistoryPaneHandle,
     }
 
     const previousTotalCount = previousTotalCountRef.current
-    const shouldScrollToBottom = previousTotalCount === 0 || currentIndex >= previousTotalCount - 4
+    const countGrew = projection.totalCount > previousTotalCount
 
     previousTotalCountRef.current = projection.totalCount
 
-    if (shouldScrollToBottom) {
-      stickyScrollDeadlineRef.current = Date.now() + 200
-      scheduleStickToBottom(scrollRef.current, stickyScrollDeadlineRef, [0, 32, 80, 160])
+    if (previousTotalCount === 0) {
+      requestBottomAnchor(scrollModeRef, bottomAnchorLockUntilRef, scrollRef.current)
+      return
     }
-  }, [currentIndex, projection, virtualizer])
+
+    if (countGrew && scrollModeRef.current === 'bottom-anchored') {
+      requestBottomAnchor(
+        scrollModeRef,
+        bottomAnchorLockUntilRef,
+        scrollRef.current,
+        CONTENT_GROWTH_LOCK_MS,
+      )
+    }
+  }, [projection])
 
   if (!projection) {
     return (
@@ -289,6 +349,7 @@ export const ConversationHistoryPane = forwardRef<ConversationHistoryPaneHandle,
       }}
     >
       <div
+        ref={contentRef}
         style={{
           height: virtualizer.getTotalSize(),
           position: 'relative',
@@ -347,20 +408,41 @@ function stickToBottom(scrollElement: HTMLDivElement | null) {
   scrollElement.scrollTop = scrollElement.scrollHeight
 }
 
-function scheduleStickToBottom(
+function requestBottomAnchor(
+  scrollModeRef: { current: ScrollMode },
+  bottomAnchorLockUntilRef: { current: number },
   scrollElement: HTMLDivElement | null,
-  stickyScrollDeadlineRef: { current: number },
-  delaysMs = [0, 48, 120, 240, 420, 720, 1100, 1600],
+  lockMs = 0,
+) {
+  scrollModeRef.current = 'bottom-anchored'
+  bottomAnchorLockUntilRef.current = lockMs > 0 ? Date.now() + lockMs : 0
+  scheduleBottomAnchor(scrollElement, [0, 32, 80, 160, 320, 520])
+}
+
+function scheduleBottomAnchor(
+  scrollElement: HTMLDivElement | null,
+  delaysMs: readonly number[],
 ) {
   delaysMs.forEach((delayMs) => {
     window.setTimeout(() => {
-      if (stickyScrollDeadlineRef.current <= Date.now()) {
-        return
-      }
-
       stickToBottom(scrollElement)
     }, delayMs)
   })
+}
+
+function isNearBottom(
+  scrollElement: HTMLDivElement | null,
+  thresholdPx: number,
+) {
+  if (!scrollElement) {
+    return false
+  }
+
+  return getDistanceToBottom(scrollElement) <= thresholdPx
+}
+
+function getDistanceToBottom(scrollElement: HTMLDivElement) {
+  return scrollElement.scrollHeight - scrollElement.clientHeight - scrollElement.scrollTop
 }
 
 function hasWindowCoverage(
