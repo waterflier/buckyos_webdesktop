@@ -20,6 +20,7 @@ const TIMESTAMP_GAP_MS = 30 * 60_000
 
 export class InMemoryConversationMessageReader
 implements AppendableConversationMessageReader {
+  readonly readerKey: string
   readonly totalCount: number
   private readonly pages: ReadonlyMap<number, readonly MessageObject[]>
   private readonly pageSize: number
@@ -28,19 +29,22 @@ implements AppendableConversationMessageReader {
     pages: ReadonlyMap<number, readonly MessageObject[]>,
     pageSize = DEFAULT_PAGE_SIZE,
     totalCount?: number,
+    readerKey = 'memory:default',
   ) {
     this.pages = pages
     this.pageSize = pageSize
     this.totalCount = totalCount ?? countMessagesInPages(pages)
+    this.readerKey = readerKey
   }
 
-  static empty(pageSize = DEFAULT_PAGE_SIZE) {
-    return new InMemoryConversationMessageReader(new Map(), pageSize, 0)
+  static empty(pageSize = DEFAULT_PAGE_SIZE, readerKey = 'memory:empty') {
+    return new InMemoryConversationMessageReader(new Map(), pageSize, 0, readerKey)
   }
 
   static fromMessages(
     messages: readonly MessageObject[],
     pageSize = DEFAULT_PAGE_SIZE,
+    readerKey = deriveMemoryReaderKey(messages),
   ) {
     const pages = new Map<number, readonly MessageObject[]>()
 
@@ -48,7 +52,12 @@ implements AppendableConversationMessageReader {
       pages.set(start / pageSize, messages.slice(start, start + pageSize))
     }
 
-    return new InMemoryConversationMessageReader(pages, pageSize, messages.length)
+    return new InMemoryConversationMessageReader(
+      pages,
+      pageSize,
+      messages.length,
+      readerKey,
+    )
   }
 
   append(message: MessageObject) {
@@ -67,6 +76,7 @@ implements AppendableConversationMessageReader {
       nextPages,
       this.pageSize,
       this.totalCount + 1,
+      this.readerKey,
     )
   }
 
@@ -121,6 +131,7 @@ interface IndexedDbSeedInit {
 
 export class IndexedDbConversationMessageReader
 implements AppendableConversationMessageReader {
+  readonly readerKey: string
   readonly totalCount: number
   private readonly databaseName: string
   private readonly namespace: string
@@ -147,6 +158,7 @@ implements AppendableConversationMessageReader {
     this.version = version
     this.overlays = overlays
     this.dbPromise = openConversationHistoryDatabase(databaseName)
+    this.readerKey = `indexeddb:${databaseName}:${namespace}:${sessionId}`
   }
 
   static seed({
@@ -358,20 +370,8 @@ export async function buildConversationProjection(
   statusItems: readonly ConversationStatusDescriptor[] = [],
 ): Promise<ConversationProjection> {
   const entries: ConversationListIndexEntry[] = []
-  const headStatuses = statusItems.filter((item) => item.position === 'head')
-  const tailStatuses = statusItems.filter(
-    (item) => !item.position || item.position === 'tail',
-  )
-
-  for (const status of headStatuses) {
-    entries.push({
-      kind: 'status',
-      key: `status:${status.id}`,
-      status: status.status,
-      label: status.label,
-      createdAtMs: status.createdAtMs,
-    })
-  }
+  const { headStatuses, tailStatuses } = splitStatusItems(statusItems)
+  appendStatuses(entries, headStatuses)
 
   let previousMessage: MessageObject | undefined
 
@@ -380,50 +380,64 @@ export async function buildConversationProjection(
 
     messages.forEach((message, offset) => {
       const messageIndex = startIndex + offset
-
-      if (shouldInsertTimestamp(message, previousMessage)) {
-        entries.push({
-          kind: 'timestamp',
-          key: `ts:${message.created_at_ms}:${messageIndex}`,
-          dateMs: message.created_at_ms,
-          anchorMessageIndex: messageIndex,
-        })
-      }
-
-      if (isStatusMessageObject(message)) {
-        entries.push({
-          kind: 'status',
-          key: `message-status:${getMessageStableId(message, messageIndex)}`,
-          status: getMessageStatusType(message) ?? 'info',
-          label: message.content.content,
-          anchorMessageIndex: messageIndex,
-          createdAtMs: message.created_at_ms,
-        })
-      } else {
-        entries.push({
-          kind: 'message',
-          key: `message:${getMessageStableId(message, messageIndex)}`,
-          messageIndex,
-        })
-      }
-
-      previousMessage = message
+      previousMessage = appendMessageEntries(
+        entries,
+        message,
+        messageIndex,
+        previousMessage,
+      )
     })
   }
 
-  for (const status of tailStatuses) {
-    entries.push({
-      kind: 'status',
-      key: `status:${status.id}`,
-      status: status.status,
-      label: status.label,
-      createdAtMs: status.createdAtMs,
-    })
-  }
+  appendStatuses(entries, tailStatuses)
 
   return {
+    readerKey: reader.readerKey,
+    messageCount: reader.totalCount,
+    tailStatusCount: tailStatuses.length,
+    statusItemsSignature: getStatusItemsSignature(statusItems),
+    lastMessage: previousMessage,
     totalCount: entries.length,
     entries,
+  }
+}
+
+export function extendConversationProjection(
+  projection: ConversationProjection,
+  appendedMessages: readonly MessageObject[],
+  statusItems: readonly ConversationStatusDescriptor[] = [],
+): ConversationProjection {
+  if (appendedMessages.length === 0) {
+    return projection
+  }
+
+  const { tailStatuses } = splitStatusItems(statusItems)
+  const baseEntries = projection.tailStatusCount > 0
+    ? projection.entries.slice(0, projection.entries.length - projection.tailStatusCount)
+    : projection.entries.slice()
+  let previousMessage = projection.lastMessage
+  let messageIndex = projection.messageCount
+
+  appendedMessages.forEach((message) => {
+    previousMessage = appendMessageEntries(
+      baseEntries,
+      message,
+      messageIndex,
+      previousMessage,
+    )
+    messageIndex += 1
+  })
+
+  appendStatuses(baseEntries, tailStatuses)
+
+  return {
+    readerKey: projection.readerKey,
+    messageCount: projection.messageCount + appendedMessages.length,
+    tailStatusCount: tailStatuses.length,
+    statusItemsSignature: getStatusItemsSignature(statusItems),
+    lastMessage: previousMessage,
+    totalCount: baseEntries.length,
+    entries: baseEntries,
   }
 }
 
@@ -514,6 +528,73 @@ function shouldInsertTimestamp(
   )
 }
 
+function appendMessageEntries(
+  entries: ConversationListIndexEntry[],
+  message: MessageObject,
+  messageIndex: number,
+  previousMessage?: MessageObject,
+) {
+  if (shouldInsertTimestamp(message, previousMessage)) {
+    entries.push({
+      kind: 'timestamp',
+      key: `ts:${message.created_at_ms}:${messageIndex}`,
+      dateMs: message.created_at_ms,
+      anchorMessageIndex: messageIndex,
+    })
+  }
+
+  if (isStatusMessageObject(message)) {
+    entries.push({
+      kind: 'status',
+      key: `message-status:${getMessageStableId(message, messageIndex)}`,
+      status: getMessageStatusType(message) ?? 'info',
+      label: message.content.content,
+      anchorMessageIndex: messageIndex,
+      createdAtMs: message.created_at_ms,
+    })
+    return message
+  }
+
+  entries.push({
+    kind: 'message',
+    key: `message:${getMessageStableId(message, messageIndex)}`,
+    messageIndex,
+  })
+  return message
+}
+
+function appendStatuses(
+  entries: ConversationListIndexEntry[],
+  statuses: readonly ConversationStatusDescriptor[],
+) {
+  statuses.forEach((status) => {
+    entries.push({
+      kind: 'status',
+      key: `status:${status.id}`,
+      status: status.status,
+      label: status.label,
+      createdAtMs: status.createdAtMs,
+    })
+  })
+}
+
+function splitStatusItems(statusItems: readonly ConversationStatusDescriptor[]) {
+  return {
+    headStatuses: statusItems.filter((item) => item.position === 'head'),
+    tailStatuses: statusItems.filter(
+      (item) => !item.position || item.position === 'tail',
+    ),
+  }
+}
+
+function getStatusItemsSignature(
+  statusItems: readonly ConversationStatusDescriptor[],
+) {
+  return statusItems.map((item) => (
+    `${item.id}:${item.position ?? 'tail'}:${item.status}:${item.label}:${item.createdAtMs ?? ''}`
+  )).join('|')
+}
+
 function groupContiguousMessageRanges(
   entries: readonly ConversationListIndexEntry[],
 ) {
@@ -558,6 +639,18 @@ function countMessagesInPages(
   })
 
   return total
+}
+
+function deriveMemoryReaderKey(messages: readonly MessageObject[]) {
+  const firstMessage = messages[0]
+  const lastMessage = messages[messages.length - 1]
+
+  if (!firstMessage || !lastMessage) {
+    return 'memory:empty'
+  }
+
+  const sessionId = firstMessage.ui_session_id ?? 'unknown-session'
+  return `memory:${sessionId}:${getMessageStableId(firstMessage, 0)}:${getMessageStableId(lastMessage, messages.length - 1)}`
 }
 
 async function readConversationMeta(

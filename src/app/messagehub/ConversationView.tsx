@@ -6,8 +6,12 @@ import {
   User,
   Users,
 } from 'lucide-react'
+import { useCallback, useRef } from 'react'
 import { useI18n } from '../../i18n/provider'
-import { ConversationHistoryPane } from './conversation/history/ConversationHistoryPane'
+import {
+  ConversationHistoryPane,
+  type ConversationHistoryPaneHandle,
+} from './conversation/history/ConversationHistoryPane'
 import type { ConversationMessageReader } from './conversation/history/types'
 import { ConversationComposer } from './conversation/input/ConversationComposer'
 import type { DID } from './protocol/msgobj'
@@ -38,6 +42,12 @@ export function ConversationView({
 }: ConversationViewProps) {
   const { t } = useI18n()
   const isGroup = entity.type === 'group'
+  const historyPaneRef = useRef<ConversationHistoryPaneHandle>(null)
+
+  const handleSendMessage = useCallback((content: string) => {
+    onSendMessage(content)
+    historyPaneRef.current?.scrollToBottom()
+  }, [onSendMessage])
 
   return (
     <div
@@ -108,6 +118,7 @@ export function ConversationView({
       </div>
 
       <ConversationHistoryPane
+        ref={historyPaneRef}
         reader={messageReader}
         selfDid={selfDid}
         isGroup={isGroup}
@@ -115,7 +126,7 @@ export function ConversationView({
 
       <ConversationComposer
         placeholder={t('messagehub.inputPlaceholder', 'Message...')}
-        onSendMessage={onSendMessage}
+        onSendMessage={handleSendMessage}
       />
     </div>
   )

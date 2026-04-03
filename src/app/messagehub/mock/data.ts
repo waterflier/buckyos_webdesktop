@@ -579,7 +579,7 @@ const mockMessageSeeds: Record<string, readonly MessageObject[]> = {
 export const mockMessageReaders = Object.fromEntries(
   Object.entries(mockMessageSeeds).map(([sessionId, messages]) => [
     sessionId,
-    InMemoryConversationMessageReader.fromMessages(messages),
+    InMemoryConversationMessageReader.fromMessages(messages, undefined, `memory:${sessionId}`),
   ]),
 ) as Record<string, InMemoryConversationMessageReader>
 

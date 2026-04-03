@@ -4,6 +4,7 @@ import type {
 } from '../../protocol/msgobj'
 
 export interface ConversationMessageReader {
+  readonly readerKey: string
   readonly totalCount: number
   readRange(startIndex: number, count: number): Promise<readonly MessageObject[]>
 }
@@ -66,6 +67,11 @@ export type ConversationListItem =
     }
 
 export interface ConversationProjection {
+  readonly readerKey: string
+  readonly messageCount: number
+  readonly tailStatusCount: number
+  readonly statusItemsSignature: string
+  readonly lastMessage?: MessageObject
   readonly totalCount: number
   readonly entries: readonly ConversationListIndexEntry[]
 }

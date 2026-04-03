@@ -118,7 +118,11 @@ export async function createCodeAssistantMockReaders(): Promise<Record<string, A
     return Object.fromEntries(
       Object.entries(seeds).map(([sessionId, messages]) => [
         sessionId,
-        InMemoryConversationMessageReader.fromMessages(messages, defaultPageSize),
+        InMemoryConversationMessageReader.fromMessages(
+          messages,
+          defaultPageSize,
+          `memory:${sessionId}`,
+        ),
       ]),
     ) as Record<string, AppendableConversationMessageReader>
   }
