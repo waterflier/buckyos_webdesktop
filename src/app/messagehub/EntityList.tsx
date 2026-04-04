@@ -26,6 +26,9 @@ interface EntityListProps {
   headerActions?: ReactNode
   enableDrilldownNavigation?: boolean
   useCompactInlineChildren?: boolean
+  childNavigationTrigger?: 'row' | 'icon'
+  drilldownPath?: string[]
+  onDrilldownPathChange?: (path: string[]) => void
   onSelectEntity: (id: string) => void
   onFilterChange: (filter: EntityFilter) => void
   onSearchChange: (query: string) => void
@@ -233,27 +236,119 @@ function TopLevelEntityItem({
   entity,
   isExpanded,
   isSelected,
+  childNavigationTrigger,
   onSelect,
+  onOpenChildren,
 }: {
   entity: Entity
   isExpanded: boolean
   isSelected: boolean
+  childNavigationTrigger: 'row' | 'icon'
   onSelect: () => void
+  onOpenChildren: () => void
 }) {
+  const canOpenChildren = hasInlineChildren(entity) || hasDrilldownChildren(entity)
+  const usesIconTrigger = canOpenChildren && childNavigationTrigger === 'icon'
+
+  if (!usesIconTrigger) {
+    return (
+      <button
+        onClick={onSelect}
+        className="relative flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors"
+        style={{
+          background: isSelected
+            ? 'color-mix(in srgb, var(--cp-accent) 14%, transparent)'
+            : 'transparent',
+        }}
+        type="button"
+      >
+        {hasInlineChildren(entity) ? <InlineExpandIndicator isExpanded={isExpanded} /> : null}
+        <EntityAvatar entity={entity} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <span
+                className="truncate text-sm font-semibold"
+                style={{ color: 'var(--cp-text)' }}
+              >
+                {entity.name}
+              </span>
+              {entity.isPinned ? (
+                <Pin size={12} style={{ color: 'var(--cp-muted)' }} />
+              ) : null}
+              {entity.isMuted ? (
+                <BellOff size={12} style={{ color: 'var(--cp-muted)' }} />
+              ) : null}
+            </div>
+            <div className="flex flex-shrink-0 items-center gap-1.5">
+              {entity.lastMessage ? (
+                <span
+                  className="text-xs"
+                  style={{ color: 'var(--cp-muted)' }}
+                >
+                  {formatTime(entity.lastMessage.timestamp)}
+                </span>
+              ) : null}
+            </div>
+          </div>
+          {entity.lastMessage ? (
+            <div className="mt-0.5 flex items-center justify-between gap-2">
+              <p
+                className="truncate text-xs"
+                style={{ color: 'var(--cp-muted)' }}
+              >
+                {entity.lastMessage.senderName && entity.type !== 'person'
+                  ? `${entity.lastMessage.senderName}: `
+                  : ''}
+                {entity.lastMessage.text}
+              </p>
+              {entity.unreadCount > 0 ? (
+                <span
+                  className="flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold"
+                  style={{
+                    background: entity.isMuted
+                      ? 'color-mix(in srgb, var(--cp-muted) 30%, transparent)'
+                      : 'var(--cp-accent)',
+                    color: entity.isMuted ? 'var(--cp-muted)' : '#fff',
+                  }}
+                >
+                  {entity.unreadCount}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </button>
+    )
+  }
+
   return (
-    <button
-      onClick={onSelect}
-      className="relative flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors"
+    <div
+      className="relative flex w-full items-center gap-2.5 px-3 py-2.5 transition-colors"
       style={{
         background: isSelected
           ? 'color-mix(in srgb, var(--cp-accent) 14%, transparent)'
           : 'transparent',
       }}
-      type="button"
     >
       {hasInlineChildren(entity) ? <InlineExpandIndicator isExpanded={isExpanded} /> : null}
-      <EntityAvatar entity={entity} />
-      <div className="min-w-0 flex-1">
+      {usesIconTrigger ? (
+        <button
+          type="button"
+          onClick={onOpenChildren}
+          className="flex min-w-0 flex-shrink-0 items-center"
+          aria-label={entity.name}
+        >
+          <EntityAvatar entity={entity} />
+        </button>
+      ) : (
+        <EntityAvatar entity={entity} />
+      )}
+      <button
+        type="button"
+        onClick={onSelect}
+        className="min-w-0 flex-1 text-left"
+      >
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-1.5">
             <span
@@ -306,8 +401,8 @@ function TopLevelEntityItem({
             ) : null}
           </div>
         ) : null}
-      </div>
-    </button>
+      </button>
+    </div>
   )
 }
 
@@ -590,23 +685,40 @@ export function EntityList({
   headerActions,
   enableDrilldownNavigation = true,
   useCompactInlineChildren = true,
+  childNavigationTrigger = 'row',
+  drilldownPath,
+  onDrilldownPathChange,
   onSelectEntity,
   onFilterChange,
   onSearchChange,
 }: EntityListProps) {
   const { t } = useI18n()
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
-  const [drilldownPath, setDrilldownPath] = useState<string[]>([])
+  const [internalDrilldownPath, setInternalDrilldownPath] = useState<string[]>([])
+  const resolvedDrilldownPath = drilldownPath ?? internalDrilldownPath
+
+  const setDrilldownPath = (next: string[] | ((prev: string[]) => string[])) => {
+    const current = resolvedDrilldownPath
+    const value = typeof next === 'function'
+      ? next(current)
+      : next
+
+    if (drilldownPath === undefined) {
+      setInternalDrilldownPath(value)
+    }
+
+    onDrilldownPathChange?.(value)
+  }
 
   const filtered = entities
     .filter((entity) => entityMatchesFilter(entity, filter))
     .filter((entity) => entityMatchesSearch(entity, searchQuery))
 
   const drilldownEntities = useMemo(
-    () => drilldownPath
+    () => resolvedDrilldownPath
       .map((entityId) => findEntityInTree(entities, entityId))
       .filter((entity): entity is Entity => Boolean(entity)),
-    [drilldownPath, entities],
+    [resolvedDrilldownPath, entities],
   )
   const drilldownEntity = drilldownEntities.at(-1) ?? null
 
@@ -745,7 +857,32 @@ export function EntityList({
                       entity={entity}
                       isExpanded={isExpanded}
                       isSelected={selectedEntityId === entity.id}
-                      onSelect={() => handleEntitySelect(entity)}
+                      childNavigationTrigger={childNavigationTrigger}
+                      onSelect={() => (
+                        childNavigationTrigger === 'icon' && hasDrilldownChildren(entity)
+                          ? (enableDrilldownNavigation
+                            ? setDrilldownPath((prev) => (
+                              prev.at(-1) === entity.id ? prev : [...prev, entity.id]
+                            ))
+                            : onSelectEntity(entity.id))
+                          : childNavigationTrigger === 'icon'
+                          ? (setDrilldownPath([]), onSelectEntity(entity.id))
+                          : handleEntitySelect(entity)
+                      )}
+                      onOpenChildren={() => {
+                        if (childNavigationTrigger === 'icon') {
+                          if (enableDrilldownNavigation && hasDrilldownChildren(entity)) {
+                            setDrilldownPath((prev) => (
+                              prev.at(-1) === entity.id ? prev : [...prev, entity.id]
+                            ))
+                          } else if (hasInlineChildren(entity) || hasDrilldownChildren(entity)) {
+                            toggleInlineGroup(entity.id)
+                          }
+                          return
+                        }
+
+                        handleEntitySelect(entity)
+                      }}
                     />
 
                     {hasInlineChildren(entity) && isExpanded ? (
@@ -769,7 +906,9 @@ export function EntityList({
                               entity={child}
                               isExpanded={false}
                               isSelected={selectedEntityId === child.id}
+                              childNavigationTrigger="row"
                               onSelect={() => onSelectEntity(child.id)}
+                              onOpenChildren={() => onSelectEntity(child.id)}
                             />
                           )
                         ))}

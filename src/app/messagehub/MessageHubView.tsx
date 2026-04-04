@@ -80,6 +80,7 @@ export function MessageHubView({
   )
   const [showSessionSidebar, setShowSessionSidebar] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
+  const [entityListDrilldownPath, setEntityListDrilldownPath] = useState<string[]>([])
   const [entityListWidth, setEntityListWidth] = useState(ENTITY_LIST_DEFAULT_WIDTH)
   const [isEntityListCollapsed, setIsEntityListCollapsed] = useState(false)
   const [isResizingEntityList, setIsResizingEntityList] = useState(false)
@@ -289,8 +290,11 @@ export function MessageHubView({
             selectedEntityId={selectedEntityId}
             filter={filter}
             searchQuery={searchQuery}
-            enableDrilldownNavigation={false}
-            useCompactInlineChildren={false}
+            enableDrilldownNavigation
+            useCompactInlineChildren
+            childNavigationTrigger="icon"
+            drilldownPath={entityListDrilldownPath}
+            onDrilldownPathChange={setEntityListDrilldownPath}
             onSelectEntity={handleSelectEntity}
             onFilterChange={setFilter}
             onSearchChange={setSearchQuery}
