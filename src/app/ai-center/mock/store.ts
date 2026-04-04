@@ -32,6 +32,8 @@ export class MockDataStore {
   private usageEvents: UsageEvent[]
   private logicalModels: LogicalModelConfig[]
   private localModels: LocalModel[]
+  private snapshot: StoreSnapshot
+  private usageSummary: UsageSummary
   private listeners: Set<() => void> = new Set()
   private snapshotVersion = 0
 
@@ -43,6 +45,8 @@ export class MockDataStore {
     this.usageEvents = seed.usageEvents
     this.logicalModels = seed.logicalModels
     this.localModels = seed.localModels
+    this.snapshot = this.buildSnapshot()
+    this.usageSummary = this.computeUsageSummary()
   }
 
   // ---- Subscription (useSyncExternalStore compatible) ----
@@ -53,25 +57,31 @@ export class MockDataStore {
   }
 
   getSnapshot = (): StoreSnapshot => {
-    return {
-      providers: Array.from(this.providers.values()),
-      usageEvents: this.usageEvents,
-      logicalModels: this.logicalModels,
-      localModels: this.localModels,
-      aiStatus: this.getAIStatus(),
-    }
+    return this.snapshot
   }
 
   getSnapshotVersion = (): number => this.snapshotVersion
 
   private notify() {
+    this.snapshot = this.buildSnapshot()
+    this.usageSummary = this.computeUsageSummary()
     this.snapshotVersion++
     this.listeners.forEach((fn) => fn())
   }
 
+  private buildSnapshot(): StoreSnapshot {
+    return {
+      providers: Array.from(this.providers.values()),
+      usageEvents: this.usageEvents,
+      logicalModels: this.logicalModels,
+      localModels: this.localModels,
+      aiStatus: this.computeAIStatus(),
+    }
+  }
+
   // ---- Provider Operations ----
 
-  getAIStatus(): AIStatus {
+  private computeAIStatus(): AIStatus {
     const providers = Array.from(this.providers.values())
     const count = providers.length
     const modelCount = providers.reduce(
@@ -92,6 +102,10 @@ export class MockDataStore {
       model_count: modelCount,
       default_routing_ok: hasRouting,
     }
+  }
+
+  getAIStatus(): AIStatus {
+    return this.snapshot.aiStatus
   }
 
   getProviders(): ProviderView[] {
@@ -187,6 +201,10 @@ export class MockDataStore {
   // ---- Usage ----
 
   getUsageSummary(): UsageSummary {
+    return this.usageSummary
+  }
+
+  private computeUsageSummary(): UsageSummary {
     const now = new Date()
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime()

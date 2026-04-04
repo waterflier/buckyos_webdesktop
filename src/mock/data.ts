@@ -44,7 +44,6 @@ const appCatalog: AppDefinition[] = [
       placement: 'inplace',
       contentPadding: 'none',
       supportedFormFactors: ['desktop'],
-      showInLauncher: false,
       desktopWindow: {
         width: 1024,
         height: 680,
@@ -360,6 +359,15 @@ const desktopItems: LayoutItem[][] = [
       type: 'app',
       appId: 'messagehub',
       x: 3,
+      y: 1,
+      w: 1,
+      h: 1,
+    },
+    {
+      id: 'app-ai-center',
+      type: 'app',
+      appId: 'ai-center',
+      x: 4,
       y: 1,
       w: 1,
       h: 1,

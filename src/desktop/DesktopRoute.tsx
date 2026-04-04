@@ -314,7 +314,7 @@ function migrateDeadZone(layout: LayoutState, formFactor: FormFactor) {
   }
 }
 
-const systemSidebarSystemAppIds = new Set(['settings', 'ai-center', 'diagnostics'])
+const systemSidebarSystemAppIds = new Set(['settings', 'diagnostics'])
 
 function createSystemSidebarDataModel(
   apps: DesktopAppItem[],
@@ -364,7 +364,7 @@ function createSystemSidebarDataModel(
     })
     .filter((app): app is SystemSidebarDataModel['switchApps'][number] => Boolean(app))
 
-  const systemApps = ['settings', 'ai-center', 'diagnostics']
+  const systemApps = ['settings', 'diagnostics']
     .map((appId) => toSidebarApp(appMap.get(appId)))
     .filter((app): app is SystemSidebarAppItem => Boolean(app))
 
@@ -560,6 +560,74 @@ function sanitizeLayoutForApps(
   }
 }
 
+function reconcileLayoutWithDefaultApps(
+  layout: LayoutState,
+  defaultLayout: LayoutState,
+  apps: DesktopAppItem[],
+  formFactor: FormFactor,
+) {
+  const sanitizedLayout = sanitizeLayoutForApps(layout, apps)
+  const launcherAppIds = new Set(
+    apps
+      .filter((app) => isLauncherApp(app))
+      .map((app) => app.id),
+  )
+  const existingAppIds = new Set(
+    sanitizedLayout.pages.flatMap((page) =>
+      page.items.flatMap((item) => (item.type === 'app' ? [item.appId] : [])),
+    ),
+  )
+  const pages = sanitizedLayout.pages.map((page) => ({
+    ...page,
+    items: [...page.items],
+  }))
+
+  defaultLayout.pages.forEach((defaultPage, pageIndex) => {
+    defaultPage.items.forEach((item) => {
+      if (
+        item.type !== 'app' ||
+        !launcherAppIds.has(item.appId) ||
+        existingAppIds.has(item.appId)
+      ) {
+        return
+      }
+
+      while (pages.length <= pageIndex) {
+        pages.push({
+          id: `${formFactor}-page-${pages.length + 1}`,
+          items: [],
+        })
+      }
+
+      const targetPage = pages[pageIndex]
+      const placement = fits(
+        targetPage,
+        item.x,
+        item.y,
+        item.w,
+        item.h,
+        gridSpec[formFactor].cols,
+        gridSpec[formFactor].rows,
+        item.id,
+      )
+        ? { x: item.x, y: item.y }
+        : findNextSlot(targetPage, item, formFactor)
+
+      targetPage.items.push({
+        ...item,
+        x: placement.x,
+        y: placement.y,
+      })
+      existingAppIds.add(item.appId)
+    })
+  })
+
+  return {
+    ...sanitizedLayout,
+    pages: pages.map((page) => normalizePageItems(page, formFactor)),
+  }
+}
+
 export function DesktopRoute() {
   const { resetBackground, setBackground } = useDesktopBackground()
   const { locale, setLocale, t } = useI18n()
@@ -627,8 +695,10 @@ export function DesktopRoute() {
   const resetViewportState = () => {
     setWindows([])
   }
-  const applyResolvedLayout = (nextLayout: LayoutState) => {
-    setLayoutState(sanitizeLayoutForApps(nextLayout, apps))
+  const applyResolvedLayout = (nextLayout: LayoutState, defaultLayout: LayoutState) => {
+    setLayoutState(
+      reconcileLayoutWithDefaultApps(nextLayout, defaultLayout, apps, formFactor),
+    )
   }
 
   useEffect(() => {
@@ -672,11 +742,14 @@ export function DesktopRoute() {
 
     if (scenario === 'normal') {
       const stored = readJson<LayoutState>(layoutStorageKey(formFactor))
-      applyResolvedLayout(stored ? migrateDeadZone(stored, formFactor) : data.layout)
+      applyResolvedLayout(
+        stored ? migrateDeadZone(stored, formFactor) : data.layout,
+        data.layout,
+      )
       return
     }
-    applyResolvedLayout(data.layout)
-  }, [data, formFactor, scenario])
+    applyResolvedLayout(data.layout, data.layout)
+  }, [apps, data, formFactor, scenario])
 
   useEffect(() => {
     if (!layoutState || scenario !== 'normal') {

@@ -171,6 +171,72 @@ test('desktop flow opens settings window and supports locale switch', async ({
   expect(consoleErrors).toEqual([])
 })
 
+test('desktop layout restores AI Center launcher entry and opens panel content', async ({
+  page,
+}) => {
+  const consoleErrors: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'error') {
+      consoleErrors.push(message.text())
+    }
+  })
+
+  await page.addInitScript(() => {
+    window.localStorage.setItem(
+      'buckyos.layout.desktop.v1',
+      JSON.stringify({
+        version: 1,
+        formFactor: 'desktop',
+        deadZone: { top: 0, bottom: 8, left: 5, right: 5 },
+        pages: [
+          {
+            id: 'desktop-page-1',
+            items: [
+              { id: 'widget-clock', type: 'widget', widgetType: 'clock', x: 0, y: 0, w: 2, h: 1, config: {} },
+              { id: 'app-settings', type: 'app', appId: 'settings', x: 2, y: 0, w: 1, h: 1 },
+              { id: 'app-files', type: 'app', appId: 'files', x: 3, y: 0, w: 1, h: 1 },
+              { id: 'app-studio', type: 'app', appId: 'studio', x: 4, y: 0, w: 1, h: 1 },
+              { id: 'app-market', type: 'app', appId: 'market', x: 5, y: 0, w: 1, h: 1 },
+              { id: 'app-docs', type: 'app', appId: 'docs', x: 6, y: 0, w: 1, h: 1 },
+              { id: 'app-demos', type: 'app', appId: 'demos', x: 7, y: 0, w: 1, h: 1 },
+              { id: 'app-codeassistant', type: 'app', appId: 'codeassistant', x: 2, y: 1, w: 1, h: 1 },
+              { id: 'app-messagehub', type: 'app', appId: 'messagehub', x: 3, y: 1, w: 1, h: 1 },
+              {
+                id: 'widget-notepad',
+                type: 'widget',
+                widgetType: 'notepad',
+                x: 0,
+                y: 1,
+                w: 2,
+                h: 2,
+                config: {
+                  content: 'Review drag semantics, dead zone behavior, and window polish.',
+                },
+              },
+            ],
+          },
+          {
+            id: 'desktop-page-2',
+            items: [
+              { id: 'app-diagnostics', type: 'app', appId: 'diagnostics', x: 0, y: 0, w: 1, h: 1 },
+            ],
+          },
+        ],
+      }),
+    )
+  })
+
+  await page.goto('/?scenario=normal')
+
+  await expect(page.getByTestId('desktop-app-ai-center')).toBeVisible()
+  await page.getByTestId('desktop-app-ai-center').click()
+  await expect(page.getByTestId('window-ai-center')).toBeVisible()
+  await expect(page.getByText('AI Features Not Enabled')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Get Started' })).toBeVisible()
+
+  expect(consoleErrors).toEqual([])
+})
+
 test('large window can move offscreen while keeping title bar reachable', async ({
   page,
 }) => {
