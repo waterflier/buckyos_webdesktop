@@ -3,6 +3,7 @@ import type {
   LayoutState,
   SystemPreferencesInput,
   ThemeMode,
+  WindowAppearancePreferences,
 } from '../../models/ui'
 import { AppContentRenderer } from '../../app/registry'
 import type { DesktopAppItem } from '../../app/types'
@@ -22,6 +23,7 @@ export function MobileWindowSheet({
   safeAreaBottom = 0,
   themeMode,
   topInset,
+  windowAppearance,
 }: {
   activityLog: string[]
   app?: DesktopAppItem
@@ -33,6 +35,7 @@ export function MobileWindowSheet({
   safeAreaBottom?: number
   themeMode: ThemeMode
   topInset: number
+  windowAppearance: WindowAppearancePreferences
 }) {
   if (!app) {
     return null
@@ -71,6 +74,7 @@ export function MobileWindowSheet({
               onSaveSettings={onSaveSettings}
               runtimeContainer={runtimeContainer}
               themeMode={themeMode}
+              windowAppearance={windowAppearance}
             />
           </div>
         </div>

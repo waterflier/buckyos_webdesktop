@@ -346,12 +346,67 @@ type FilePreviewSeed = IParsedEntity & {
   accent?: string
 }
 
+function createFolderArtwork(
+  palette: ReturnType<typeof resolveAccent>,
+  safeWidth: number,
+  safeHeight: number,
+) {
+  const iconWidth = Math.min(112, safeWidth * 0.52)
+  const iconHeight = Math.min(74, safeHeight * 0.42)
+  const iconX = (safeWidth - iconWidth) / 2
+  const iconY = Math.max(26, safeHeight * 0.22)
+  const tabWidth = iconWidth * 0.34
+  const tabHeight = iconHeight * 0.28
+  const bodyY = iconY + tabHeight * 0.46
+  const bodyHeight = iconHeight - tabHeight * 0.22
+
+  return `
+    <g>
+      <ellipse cx="${safeWidth / 2}" cy="${bodyY + bodyHeight + 10}" rx="${iconWidth * 0.44}" ry="10" fill="rgba(95,103,232,0.10)" />
+      <path d="M${iconX + 10} ${iconY + tabHeight}h${tabWidth}l10 ${tabHeight}h${iconWidth - tabWidth - 20}a14 14 0 0 1 14 14v10H${iconX}v-18a16 16 0 0 1 16-16Z" fill="${palette.primary}" opacity="0.9" />
+      <rect x="${iconX}" y="${bodyY}" width="${iconWidth}" height="${bodyHeight}" rx="18" fill="${palette.primary}" />
+      <path d="M${iconX + 10} ${bodyY + 8}h${iconWidth - 20}a12 12 0 0 1 12 12v6H${iconX}v-4a14 14 0 0 1 14-14Z" fill="rgba(255,255,255,0.18)" />
+      <rect x="${iconX + 16}" y="${bodyY + 18}" width="${iconWidth - 32}" height="9" rx="4.5" fill="rgba(255,255,255,0.20)" />
+      <rect x="${iconX + 16}" y="${bodyY + 34}" width="${iconWidth * 0.46}" height="9" rx="4.5" fill="rgba(255,255,255,0.16)" />
+    </g>
+  `
+}
+
+function createFileArtwork(
+  palette: ReturnType<typeof resolveAccent>,
+  safeWidth: number,
+  safeHeight: number,
+  label: string,
+) {
+  const iconWidth = Math.min(92, safeWidth * 0.44)
+  const iconHeight = Math.min(118, safeHeight * 0.62)
+  const iconX = (safeWidth - iconWidth) / 2
+  const iconY = Math.max(16, safeHeight * 0.14)
+  const foldSize = Math.min(22, iconWidth * 0.24)
+
+  return `
+    <g>
+      <ellipse cx="${safeWidth / 2}" cy="${iconY + iconHeight + 8}" rx="${iconWidth * 0.42}" ry="9" fill="rgba(108,111,136,0.10)" />
+      <path d="M${iconX} ${iconY + 14}a14 14 0 0 1 14-14h${iconWidth - foldSize - 14}l${foldSize} ${foldSize}v${iconHeight - 14}a14 14 0 0 1-14 14H${iconX + 14}a14 14 0 0 1-14-14Z" fill="#ffffff" stroke="rgba(36,40,59,0.08)" stroke-width="2" />
+      <path d="M${iconX + iconWidth - foldSize} ${iconY}v${foldSize}h${foldSize}" fill="${palette.secondary}" />
+      <path d="M${iconX + iconWidth - foldSize} ${iconY}v${foldSize}h${foldSize}" fill="none" stroke="rgba(36,40,59,0.08)" stroke-width="2" stroke-linejoin="round" />
+      <rect x="${iconX + 16}" y="${iconY + 22}" width="${iconWidth - 32}" height="24" rx="12" fill="${palette.primary}" opacity="0.95" />
+      <text x="${safeWidth / 2}" y="${iconY + 38}" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#ffffff">${label}</text>
+      <rect x="${iconX + 16}" y="${iconY + 60}" width="${iconWidth - 32}" height="8" rx="4" fill="${palette.secondary}" />
+      <rect x="${iconX + 16}" y="${iconY + 74}" width="${iconWidth - 24}" height="8" rx="4" fill="${palette.secondary}" />
+      <rect x="${iconX + 16}" y="${iconY + 88}" width="${iconWidth - 40}" height="8" rx="4" fill="${palette.secondary}" />
+    </g>
+  `
+}
+
 export function createFilePreview(entity: FilePreviewSeed, width: number, height: number) {
   const palette = resolveAccent(entity)
   const safeWidth = Math.max(width, 160)
   const safeHeight = Math.max(height, 120)
-  const label = entity.type === 'folder' ? entity.name : palette.label
-  const title = entity.name.length > 18 ? `${entity.name.slice(0, 16)}…` : entity.name
+  const badgeLabel = entity.type === 'folder' ? 'DIR' : palette.label
+  const artwork = entity.type === 'folder'
+    ? createFolderArtwork(palette, safeWidth, safeHeight)
+    : createFileArtwork(palette, safeWidth, safeHeight, palette.label)
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="${safeWidth}" height="${safeHeight}" viewBox="0 0 ${safeWidth} ${safeHeight}">
       <defs>
@@ -361,11 +416,10 @@ export function createFilePreview(entity: FilePreviewSeed, width: number, height
         </linearGradient>
       </defs>
       <rect width="${safeWidth}" height="${safeHeight}" rx="18" fill="url(#bg)" />
-      <rect x="16" y="18" width="${safeWidth - 32}" height="${safeHeight - 36}" rx="16" fill="rgba(255,255,255,0.72)" />
-      <rect x="28" y="32" width="78" height="28" rx="14" fill="${palette.primary}" opacity="0.92" />
-      <text x="67" y="50" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#ffffff">${label}</text>
-      <text x="28" y="${safeHeight - 42}" font-family="Arial, sans-serif" font-size="17" font-weight="700" fill="#24283b">${title}</text>
-      <text x="28" y="${safeHeight - 18}" font-family="Arial, sans-serif" font-size="12" fill="#69708a">${entity.parent}</text>
+      <rect x="16" y="18" width="${safeWidth - 32}" height="${safeHeight - 36}" rx="16" fill="rgba(255,255,255,0.78)" />
+      ${artwork}
+      <rect x="22" y="${safeHeight - 46}" width="${Math.min(92, safeWidth - 44)}" height="24" rx="12" fill="rgba(255,255,255,0.92)" />
+      <text x="34" y="${safeHeight - 30}" font-family="Arial, sans-serif" font-size="11" font-weight="700" fill="${palette.primary}">${badgeLabel}</text>
     </svg>
   `
 

@@ -7,7 +7,7 @@ import type {
 } from 'react'
 import { AppIcon } from '../../components/DesktopVisuals'
 import { useI18n } from '../../i18n/provider'
-import type { ThemeMode } from '../../models/ui'
+import type { ThemeMode, WindowAppearancePreferences } from '../../models/ui'
 import {
   WindowDialogProvider,
   resolveWindowDialogPermissions,
@@ -107,6 +107,14 @@ function shouldIgnoreWindowFocus(target: EventTarget | null) {
   )
 }
 
+function clampOpacityPercent(value: number) {
+  return Math.min(Math.max(value, 0), 100)
+}
+
+function mixWithTransparency(color: string, opacityPercent: number) {
+  return `color-mix(in srgb, ${color} ${clampOpacityPercent(opacityPercent)}%, transparent)`
+}
+
 export function DesktopWindowContainer({
   children,
   isFront,
@@ -119,6 +127,7 @@ export function DesktopWindowContainer({
   style,
   themeMode,
   uiModel,
+  windowAppearance,
 }: {
   children: ReactNode
   isFront: boolean
@@ -133,32 +142,39 @@ export function DesktopWindowContainer({
   style: CSSProperties
   themeMode: ThemeMode
   uiModel: DesktopWindowDataModel
+  windowAppearance: WindowAppearancePreferences
 }) {
   const { t } = useI18n()
   const { app } = uiModel
   const isMaximized = uiModel.state === 'maximized'
   const hasFullBleedContent = app.manifest.contentPadding === 'none'
+  const titleBarOpacity = clampOpacityPercent(windowAppearance.titleBarOpacity)
+  const backgroundOpacity = clampOpacityPercent(windowAppearance.backgroundOpacity)
   const activeTitleBarMix =
     themeMode === 'light'
       ? {
-          start: `color-mix(in srgb, ${app.accent} 38%, var(--cp-surface-2))`,
-          end: `color-mix(in srgb, ${app.accent} 22%, var(--cp-surface))`,
-          border: `color-mix(in srgb, ${app.accent} 32%, var(--cp-border))`,
+          start: `color-mix(in srgb, ${app.accent} 38%, var(--cp-surface-2-opaque))`,
+          end: `color-mix(in srgb, ${app.accent} 22%, var(--cp-surface-opaque))`,
+          border: `color-mix(in srgb, ${app.accent} 32%, var(--cp-border-opaque))`,
         }
       : {
-          start: `color-mix(in srgb, ${app.accent} 20%, var(--cp-surface-2))`,
-          end: `color-mix(in srgb, ${app.accent} 9%, var(--cp-surface))`,
-          border: `color-mix(in srgb, ${app.accent} 18%, var(--cp-border))`,
+          start: `color-mix(in srgb, ${app.accent} 20%, var(--cp-surface-2-opaque))`,
+          end: `color-mix(in srgb, ${app.accent} 9%, var(--cp-surface-opaque))`,
+          border: `color-mix(in srgb, ${app.accent} 18%, var(--cp-border-opaque))`,
         }
   const titleBarStyle = isFront
     ? {
-        background: `linear-gradient(180deg, ${activeTitleBarMix.start}, ${activeTitleBarMix.end})`,
-        borderBottomColor: activeTitleBarMix.border,
+        background: `linear-gradient(180deg, ${mixWithTransparency(activeTitleBarMix.start, titleBarOpacity)}, ${mixWithTransparency(activeTitleBarMix.end, titleBarOpacity)})`,
+        borderBottomColor: mixWithTransparency(activeTitleBarMix.border, titleBarOpacity),
       }
     : {
         background:
-          'linear-gradient(180deg,color-mix(in_srgb,var(--cp-surface-2)_94%,transparent),color-mix(in_srgb,var(--cp-surface)_92%,transparent))',
+          `linear-gradient(180deg, ${mixWithTransparency('var(--cp-surface-2-opaque)', titleBarOpacity)}, ${mixWithTransparency('var(--cp-surface-opaque)', titleBarOpacity)})`,
       }
+  const windowStyle = {
+    ...style,
+    background: `linear-gradient(180deg, ${mixWithTransparency('var(--cp-surface-opaque)', backgroundOpacity)}, ${mixWithTransparency('var(--cp-surface-2-opaque)', backgroundOpacity)})`,
+  } satisfies CSSProperties
   const activeTitleTextColor =
     themeMode === 'light'
       ? 'color-mix(in srgb, var(--cp-text) 96%, black)'
@@ -178,7 +194,7 @@ export function DesktopWindowContainer({
         'pointer-events-auto shell-window absolute flex flex-col overflow-hidden rounded-[12px] border border-[color:var(--cp-border)] transition-[transform,box-shadow,opacity] duration-200 ease-[var(--cp-ease-emphasis)]',
         isFront ? 'opacity-100' : 'opacity-[0.97]',
       )}
-      style={style}
+      style={windowStyle}
       onMouseDown={(event) => {
         if (shouldIgnoreWindowFocus(event.target)) {
           return

@@ -4,6 +4,7 @@ import type {
   LayoutState,
   SystemPreferencesInput,
   ThemeMode,
+  WindowAppearancePreferences,
 } from '../models/ui'
 
 export interface AppContentLoaderProps {
@@ -14,6 +15,7 @@ export interface AppContentLoaderProps {
   onSaveSettings: (values: SystemPreferencesInput) => void
   runtimeContainer: string
   themeMode: ThemeMode
+  windowAppearance: WindowAppearancePreferences
 }
 
 export type AppContentLoader = ComponentType<AppContentLoaderProps>

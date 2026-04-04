@@ -9,7 +9,12 @@
       "Read(//Users/liuzhicong/.local/share/fnm/**)",
       "Read(//Users/liuzhicong/.fnm/**)",
       "Read(//Users/liuzhicong/.volta/bin/**)",
-      "Bash(export PATH=\"/opt/homebrew/Cellar/node/23.10.0_1/bin:/Users/liuzhicong/project/buckyos_webdesktop/node_modules/.bin:$PATH\")"
+      "Bash(export PATH=\"/opt/homebrew/Cellar/node/23.10.0_1/bin:/Users/liuzhicong/project/buckyos_webdesktop/node_modules/.bin:$PATH\")",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(source ~/.zshrc)",
+      "Bash(node node_modules/.bin/tsc --noEmit)",
+      "Read(//Users/liuzhicong/.local/bin/**)",
+      "Read(//Users/liuzhicong/**)"
     ]
   }
 }

@@ -60,7 +60,11 @@ import {
 import { useI18n } from '../i18n/provider'
 import { defaultDeadZone } from '../mock/data'
 import { fetchDesktopPayload } from '../mock/provider'
-import { supportedLocales } from '../models/ui'
+import {
+  defaultWindowAppearancePreferences,
+  supportedLocales,
+  windowAppearancePreferencesSchema,
+} from '../models/ui'
 import type {
   AppDefinition,
   DesktopPageState,
@@ -73,12 +77,14 @@ import type {
   SystemSidebarDataModel,
   SystemPreferencesInput,
   ThemeMode,
+  WindowAppearancePreferences,
   WindowRecord,
 } from '../models/ui'
 import { useThemeMode } from '../theme/provider'
 
 const runtimeStorageKey = 'buckyos.prototype.runtime.v1'
 const windowGeometryStorageKey = 'buckyos.window-geometry.desktop.v1'
+const windowAppearanceStorageKey = 'buckyos.window-appearance.v1'
 const desktopMinCanvasSize = { width: 960, height: 720 }
 
 type WindowGeometry = Pick<WindowRecord, 'x' | 'y' | 'width' | 'height'>
@@ -262,6 +268,16 @@ function readJson<T>(key: string) {
 
 function writeJson<T>(key: string, value: T) {
   window.localStorage.setItem(key, JSON.stringify(value))
+}
+
+function readWindowAppearancePreferences() {
+  const parsed = windowAppearancePreferencesSchema.safeParse(
+    readJson(windowAppearanceStorageKey),
+  )
+
+  return parsed.success
+    ? parsed.data
+    : { ...defaultWindowAppearancePreferences }
 }
 
 function layoutStorageKey(formFactor: FormFactor) {
@@ -550,6 +566,9 @@ export function DesktopRoute() {
         | null) ?? 'browser'
     )
   })
+  const [windowAppearance, setWindowAppearance] = useState<WindowAppearancePreferences>(
+    () => readWindowAppearancePreferences(),
+  )
   const [contextMenu, setContextMenu] = useState<{
     itemId: string
     mouseX: number
@@ -588,7 +607,6 @@ export function DesktopRoute() {
   }
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     resetViewportState()
     setIsSystemSidebarOpen(false)
     setViewportProgress(0)
@@ -597,6 +615,10 @@ export function DesktopRoute() {
   useEffect(() => {
     window.localStorage.setItem(runtimeStorageKey, runtimeContainer)
   }, [runtimeContainer])
+
+  useEffect(() => {
+    writeJson(windowAppearanceStorageKey, windowAppearance)
+  }, [windowAppearance])
 
   useEffect(() => {
     return () => {
@@ -625,7 +647,6 @@ export function DesktopRoute() {
 
     if (scenario === 'normal') {
       const stored = readJson<LayoutState>(layoutStorageKey(formFactor))
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       applyResolvedLayout(stored ? migrateDeadZone(stored, formFactor) : data.layout)
       return
     }
@@ -1134,10 +1155,15 @@ export function DesktopRoute() {
       left: values.deadZoneLeft,
       right: values.deadZoneRight,
     }
+    const nextWindowAppearance = {
+      titleBarOpacity: values.titleBarOpacity,
+      backgroundOpacity: values.backgroundOpacity,
+    }
 
     setLocale(values.locale)
     setThemeMode(values.theme as ThemeMode)
     setRuntimeContainer(values.runtimeContainer)
+    setWindowAppearance(nextWindowAppearance)
     setLayoutState((prev) => {
       if (!prev) {
         return prev
@@ -1527,6 +1553,7 @@ export function DesktopRoute() {
                   themeMode={themeMode}
                   topInset={desktopWorkspaceTopInset}
                   uiModel={windowLayerModel}
+                  windowAppearance={windowAppearance}
                   workspaceSize={viewportSize}
                 />
               )}
@@ -1543,6 +1570,7 @@ export function DesktopRoute() {
                   runtimeContainer={runtimeContainer}
                   themeMode={themeMode}
                   topInset={mobileSheetTopInset}
+                  windowAppearance={windowAppearance}
                 />
               )}
             </>

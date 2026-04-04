@@ -10,10 +10,13 @@
   --cp-bg-strong: oklch(0.925 0.022 284);
   --cp-surface: color-mix(in srgb, oklch(0.99 0.006 280) 88%, white);
   --cp-surface-2: color-mix(in srgb, oklch(0.953 0.018 286) 92%, white);
+  --cp-surface-opaque: color-mix(in srgb, oklch(0.99 0.006 280) 88%, white);
+  --cp-surface-2-opaque: color-mix(in srgb, oklch(0.953 0.018 286) 92%, white);
   --cp-surface-3: color-mix(in srgb, var(--cp-accent-soft) 14%, var(--cp-surface));
   --cp-text: oklch(0.29 0.03 268);
   --cp-muted: oklch(0.54 0.024 274);
   --cp-border: color-mix(in srgb, oklch(0.71 0.024 280) 46%, transparent);
+  --cp-border-opaque: oklch(0.71 0.024 280);
   --cp-accent: oklch(0.63 0.152 257);
   --cp-accent-soft: oklch(0.79 0.065 296);
   --cp-ink-accent: oklch(0.76 0.041 301);
@@ -49,10 +52,13 @@
   --cp-bg-strong: oklch(0.18 0.02 272);
   --cp-surface: color-mix(in srgb, oklch(0.275 0.028 276) 88%, transparent);
   --cp-surface-2: color-mix(in srgb, oklch(0.31 0.03 280) 84%, transparent);
+  --cp-surface-opaque: color-mix(in srgb, oklch(0.275 0.028 276) 88%, black);
+  --cp-surface-2-opaque: color-mix(in srgb, oklch(0.31 0.03 280) 84%, black);
   --cp-surface-3: color-mix(in srgb, var(--cp-accent-soft) 14%, var(--cp-surface));
   --cp-text: oklch(0.95 0.012 296);
   --cp-muted: oklch(0.76 0.02 282);
   --cp-border: color-mix(in srgb, oklch(0.58 0.024 282) 36%, transparent);
+  --cp-border-opaque: oklch(0.58 0.024 282);
   --cp-accent: oklch(0.78 0.12 260);
   --cp-accent-soft: oklch(0.7 0.08 301);
   --cp-ink-accent: oklch(0.58 0.05 300);
@@ -225,11 +231,33 @@ a {
   --wx-font-family: 'Plus Jakarta Sans', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
   --wx-background: color-mix(in srgb, var(--cp-surface) 96%, transparent);
   --wx-background-alt: color-mix(in srgb, var(--cp-surface-2) 94%, transparent);
+  --wx-background-hover: color-mix(in srgb, var(--cp-accent-soft) 8%, var(--cp-surface));
   --wx-color-font: var(--cp-text);
   --wx-color-font-alt: var(--cp-muted);
   --wx-color-primary: var(--cp-accent);
+  --wx-color-primary-selected: color-mix(in srgb, var(--cp-accent-soft) 14%, var(--cp-surface));
+  --wx-icon-color: color-mix(in srgb, var(--cp-muted) 88%, transparent);
   --wx-border: 1px solid color-mix(in srgb, var(--cp-border) 92%, transparent);
+  --wx-border-radius: 14px;
+  --wx-radius-major: 18px;
+  --wx-input-border-radius: 14px;
+  --wx-button-border-radius: 14px;
   --wx-box-shadow: none;
+  --wx-shadow-light: none;
+  --wx-shadow-medium: none;
+  --wx-fm-background: color-mix(in srgb, var(--cp-surface-2) 78%, transparent);
+  --wx-fm-box-shadow: none;
+  --wx-fm-select-background: color-mix(in srgb, var(--cp-accent-soft) 12%, var(--cp-surface));
+  --wx-fm-grid-border: 1px solid color-mix(in srgb, var(--cp-border) 82%, transparent);
+  --wx-fm-grid-header-color: color-mix(in srgb, var(--cp-surface-2) 98%, transparent);
+  --wx-fm-button-font-color: color-mix(in srgb, var(--cp-muted) 92%, transparent);
+  --wx-table-border: 1px solid color-mix(in srgb, var(--cp-border) 82%, transparent);
+  --wx-table-header-border: var(--wx-table-border);
+  --wx-table-header-cell-border: var(--wx-table-border);
+  --wx-table-cell-border: var(--wx-table-border);
+  --wx-table-header-background: color-mix(in srgb, var(--cp-surface-2) 98%, transparent);
+  --wx-table-select-background: color-mix(in srgb, var(--cp-accent-soft) 12%, var(--cp-surface));
+  --wx-table-select-border: inset 3px 0 color-mix(in srgb, var(--cp-accent) 72%, transparent);
 }
 
 .files-browser,
@@ -248,6 +276,24 @@ a {
   max-height: none;
   max-width: none;
   border-radius: 0;
+}
+
+.files-browser .wx-toolbar.wx-5PZQQztG,
+.files-browser .wx-wrapper.wx-FlucfALM,
+.files-browser .wx-wrapper.wx-SSaVhET7,
+.files-browser .wx-preview.wx-O0BTtRrH,
+.files-browser .wx-info-panel.wx-O0BTtRrH,
+.files-browser .wx-no-info-panel.wx-O0BTtRrH {
+  border: 1px solid color-mix(in srgb, var(--cp-border) 82%, transparent);
+  border-radius: 18px;
+  box-shadow: none;
+}
+
+.files-browser .wx-toolbar.wx-O0BTtRrH,
+.files-browser .wx-breadcrumbs.wx-SNY5LTYx,
+.files-browser .wx-wrapper.wx-NwohNJzN > .wx-upload-area,
+.files-browser .wx-list.wx-SSaVhET7 > .wx-upload-area .wx-table {
+  border-radius: 18px;
 }
 
 .files-browser .wx-toolbar,
@@ -281,7 +327,49 @@ a {
   min-height: 0;
 }
 
-.files-browser i[class*='wxi-']::before {
+.files-browser .wx-text.wx-lUZMtgT1 {
+  border-radius: 999px;
+  border-color: color-mix(in srgb, var(--cp-border) 92%, transparent);
+  background-color: color-mix(in srgb, var(--cp-surface) 92%, transparent);
+  color: var(--cp-text);
+}
+
+.files-browser .wx-text.wx-lUZMtgT1::placeholder {
+  color: color-mix(in srgb, var(--cp-muted) 84%, transparent);
+}
+
+.files-browser .wx-icon.wx-lUZMtgT1 {
+  color: color-mix(in srgb, var(--cp-muted) 92%, transparent);
+}
+
+.files-browser .wx-name.wx-5PZQQztG,
+.files-browser .wx-toolbar.wx-O0BTtRrH .wx-name.wx-O0BTtRrH,
+.files-browser .wx-text.wx-GDJvtROw,
+.files-browser .wx-breadcrumbs.wx-SNY5LTYx,
+.files-browser .wx-item.wx-SNY5LTYx {
+  color: var(--cp-text);
+}
+
+.files-browser .wx-item.wx-SNY5LTYx:hover,
+.files-browser .wx-back.wx-GAOa4kDV,
+.files-browser .wx-folder.wx-NYfhvGIt.wx-selected,
+.files-browser .wx-list.wx-SSaVhET7 > .wx-upload-area.wx-active .wx-row {
+  background-color: color-mix(in srgb, var(--cp-accent-soft) 12%, var(--cp-surface));
+}
+
+.files-browser .wxi-search::before,
+.files-browser .wxi-eye::before,
+.files-browser .wxi-arrow-left::before,
+.files-browser .wxi-angle-left::before,
+.files-browser .wxi-close::before,
+.files-browser .wxi-refresh::before,
+.files-browser .wxi-angle-right::before,
+.files-browser .wxi-angle-down::before,
+.files-browser .wxi-folder::before,
+.files-browser .wxi-view-sequential::before,
+.files-browser .wxi-view-grid::before,
+.files-browser .wxi-view-column::before,
+.files-browser .wxi-dots-v::before {
   content: '';
   display: block;
   width: 1em;
@@ -307,6 +395,14 @@ a {
 
 .files-browser .wxi-arrow-left {
   --files-wx-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M10 6l-6 6 6 6' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M20 12H5' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+.files-browser .wxi-angle-left {
+  --files-wx-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M15 5l-7 7 7 7' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+.files-browser .wxi-close {
+  --files-wx-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 6l12 12M18 6l-12 12' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E");
 }
 
 .files-browser .wxi-refresh {
@@ -335,6 +431,10 @@ a {
 
 .files-browser .wxi-view-column {
   --files-wx-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='4' y='4' width='5' height='16' rx='1.2' fill='black'/%3E%3Crect x='10.5' y='4' width='4.5' height='16' rx='1.2' fill='black' opacity='.8'/%3E%3Crect x='16.5' y='4' width='3.5' height='16' rx='1.2' fill='black' opacity='.55'/%3E%3C/svg%3E");
+}
+
+.files-browser .wxi-dots-v {
+  --files-wx-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='5.5' r='2' fill='black'/%3E%3Ccircle cx='12' cy='12' r='2' fill='black'/%3E%3Ccircle cx='12' cy='18.5' r='2' fill='black'/%3E%3C/svg%3E");
 }
 
 @media (prefers-reduced-motion: reduce) {

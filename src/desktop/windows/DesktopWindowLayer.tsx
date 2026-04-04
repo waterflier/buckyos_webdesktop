@@ -7,6 +7,7 @@ import type {
   LayoutState,
   SystemPreferencesInput,
   ThemeMode,
+  WindowAppearancePreferences,
 } from '../../models/ui'
 import { AppContentRenderer } from '../../app/registry'
 import { DesktopWindowContainer } from './DesktopWindowContainer'
@@ -36,6 +37,7 @@ export function DesktopWindowLayer({
   themeMode,
   topInset,
   uiModel,
+  windowAppearance,
   workspaceSize,
 }: {
   activityLog: string[]
@@ -56,6 +58,7 @@ export function DesktopWindowLayer({
   themeMode: ThemeMode
   topInset: number
   uiModel: DesktopWindowLayerDataModel
+  windowAppearance: WindowAppearancePreferences
   workspaceSize: { width: number; height: number }
 }) {
   const windows = uiModel.windows
@@ -300,6 +303,7 @@ export function DesktopWindowLayer({
             }}
             themeMode={themeMode}
             uiModel={windowItem}
+            windowAppearance={windowAppearance}
           >
             <AppContentRenderer
               activityLog={activityLog}
@@ -309,6 +313,7 @@ export function DesktopWindowLayer({
               onSaveSettings={onSaveSettings}
               runtimeContainer={runtimeContainer}
               themeMode={themeMode}
+              windowAppearance={windowAppearance}
             />
           </DesktopWindowContainer>
         )

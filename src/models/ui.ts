@@ -72,6 +72,21 @@ export interface DesktopWallpaper {
   tileSize?: number
 }
 
+export interface WindowAppearancePreferences {
+  titleBarOpacity: number
+  backgroundOpacity: number
+}
+
+export const defaultWindowAppearancePreferences: WindowAppearancePreferences = {
+  titleBarOpacity: 100,
+  backgroundOpacity: 100,
+}
+
+export const windowAppearancePreferencesSchema = z.object({
+  titleBarOpacity: z.coerce.number().int().min(0).max(100),
+  backgroundOpacity: z.coerce.number().int().min(0).max(100),
+})
+
 export interface DesktopWindowSizing {
   width: number
   height: number
@@ -145,6 +160,8 @@ export const systemPreferencesInputSchema = z.object({
   deadZoneBottom: z.coerce.number().int().min(0).max(120),
   deadZoneLeft: z.coerce.number().int().min(0).max(72),
   deadZoneRight: z.coerce.number().int().min(0).max(72),
+  titleBarOpacity: z.coerce.number().int().min(0).max(100),
+  backgroundOpacity: z.coerce.number().int().min(0).max(100),
 })
 
 export type SystemPreferencesInput = z.infer<typeof systemPreferencesInputSchema>

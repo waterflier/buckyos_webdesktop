@@ -17,17 +17,27 @@ export function SettingsAppPanel({
   onSaveSettings,
   runtimeContainer,
   themeMode,
+  windowAppearance,
 }: AppContentLoaderProps) {
   const { locale, t } = useI18n()
   const appearanceSchema = systemPreferencesInputSchema.pick({
     locale: true,
     theme: true,
+    titleBarOpacity: true,
+    backgroundOpacity: true,
   })
-  const form = useForm<Pick<SystemPreferencesInput, 'locale' | 'theme'>>({
+  const form = useForm<
+    Pick<
+      SystemPreferencesInput,
+      'locale' | 'theme' | 'titleBarOpacity' | 'backgroundOpacity'
+    >
+  >({
     resolver: zodResolver(appearanceSchema),
     defaultValues: {
       locale,
       theme: themeMode,
+      titleBarOpacity: windowAppearance.titleBarOpacity,
+      backgroundOpacity: windowAppearance.backgroundOpacity,
     },
   })
 
@@ -35,8 +45,10 @@ export function SettingsAppPanel({
     form.reset({
       locale,
       theme: themeMode,
+      titleBarOpacity: windowAppearance.titleBarOpacity,
+      backgroundOpacity: windowAppearance.backgroundOpacity,
     })
-  }, [form, locale, themeMode])
+  }, [form, locale, themeMode, windowAppearance.backgroundOpacity, windowAppearance.titleBarOpacity])
 
   const runtimeLabel = t(`runtime.${runtimeContainer}`, runtimeContainer)
   const themeLabel = t(themeMode === 'light' ? 'common.light' : 'common.dark')
@@ -53,6 +65,8 @@ export function SettingsAppPanel({
           deadZoneBottom: deadZone.bottom,
           deadZoneLeft: deadZone.left,
           deadZoneRight: deadZone.right,
+          titleBarOpacity: values.titleBarOpacity,
+          backgroundOpacity: values.backgroundOpacity,
         }),
       )}
       className="space-y-4"
@@ -90,10 +104,40 @@ export function SettingsAppPanel({
                 </TextField>
               )}
             />
+            <Controller
+              control={form.control}
+              name="titleBarOpacity"
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  type="number"
+                  label={t('settings.titleBarOpacity', 'Window title bar opacity (%)')}
+                  inputProps={{ min: 0, max: 100, step: 1 }}
+                />
+              )}
+            />
+            <Controller
+              control={form.control}
+              name="backgroundOpacity"
+              render={({ field }) => (
+                <TextField
+                  {...field}
+                  type="number"
+                  label={t('settings.backgroundOpacity', 'Window background opacity (%)')}
+                  inputProps={{ min: 0, max: 100, step: 1 }}
+                />
+              )}
+            />
           </div>
 
           <p className="mt-4 text-sm leading-6 text-[color:var(--cp-muted)]">
             {t('settings.helper')}
+          </p>
+          <p className="mt-2 text-sm leading-6 text-[color:var(--cp-muted)]">
+            {t(
+              'settings.opacityHelper',
+              '100 means fully opaque. 0 means fully transparent.',
+            )}
           </p>
 
           <div className="mt-5 flex justify-end">
@@ -111,6 +155,16 @@ export function SettingsAppPanel({
             value={localeLabels[locale as keyof typeof localeLabels] ?? locale}
           />
           <MetricCard label={t('common.runtime')} tone="success" value={runtimeLabel} />
+          <MetricCard
+            label={t('settings.titleBarOpacity', 'Window title bar opacity (%)')}
+            tone="neutral"
+            value={`${windowAppearance.titleBarOpacity}%`}
+          />
+          <MetricCard
+            label={t('settings.backgroundOpacity', 'Window background opacity (%)')}
+            tone="neutral"
+            value={`${windowAppearance.backgroundOpacity}%`}
+          />
           <div className="shell-subtle-panel px-4 py-4">
             <p className="shell-kicker">{t('shell.deadZone')}</p>
             <div className="mt-3 grid grid-cols-2 gap-2 text-sm text-[color:var(--cp-muted)]">
