@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  memo,
   startTransition,
   useEffect,
   useImperativeHandle,
@@ -29,11 +30,16 @@ const EXPLICIT_SCROLL_LOCK_MS = 1500
 
 type ScrollMode = 'bottom-anchored' | 'free-scroll'
 
+interface ViewportProfile {
+  isMobileViewport: boolean
+  visibleItemCount: number
+}
+
 export interface ConversationHistoryPaneHandle {
   scrollToBottom: () => void
 }
 
-export const ConversationHistoryPane = forwardRef<ConversationHistoryPaneHandle, {
+const ConversationHistoryPaneInner = forwardRef<ConversationHistoryPaneHandle, {
   reader: ConversationMessageReader
   selfDid: DID
   isGroup: boolean
@@ -46,8 +52,10 @@ export const ConversationHistoryPane = forwardRef<ConversationHistoryPaneHandle,
 }, ref) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  const [viewportWidth, setViewportWidth] = useState(0)
-  const [viewportHeight, setViewportHeight] = useState(0)
+  const [viewportProfile, setViewportProfile] = useState<ViewportProfile>({
+    isMobileViewport: false,
+    visibleItemCount: DEFAULT_VISIBLE_ITEM_COUNT,
+  })
   const [projection, setProjection] = useState<Awaited<ReturnType<typeof buildConversationProjection>> | null>(null)
   const [windowState, setWindowState] = useState<ConversationMaterializedWindow | null>(null)
   const previousTotalCountRef = useRef(0)
@@ -56,14 +64,7 @@ export const ConversationHistoryPane = forwardRef<ConversationHistoryPaneHandle,
   const bottomAnchorLockUntilRef = useRef(0)
   const bottomAnchorRequestIdRef = useRef(0)
   const hasProjection = projection !== null
-  const isMobileViewport = viewportWidth > 0 && viewportWidth < 769
-  const effectiveViewportHeight = isMobileViewport
-    ? Math.round(viewportHeight * 7)
-    : viewportHeight
-  const visibleItemCount = Math.max(
-    DEFAULT_VISIBLE_ITEM_COUNT,
-    Math.ceil(effectiveViewportHeight / 88),
-  )
+  const { isMobileViewport, visibleItemCount } = viewportProfile
   const itemsByIndex = useMemo(() => {
     const map = new Map<number, ConversationListItem>()
 
@@ -83,14 +84,19 @@ export const ConversationHistoryPane = forwardRef<ConversationHistoryPaneHandle,
     const resizeObserver = new ResizeObserver((entries) => {
       const entry = entries[0]
       if (entry) {
-        setViewportWidth(entry.contentRect.width)
-        setViewportHeight(entry.contentRect.height)
+        setViewportProfile((previous) => {
+          const next = getViewportProfile(entry.contentRect.width, entry.contentRect.height)
+
+          return previous.isMobileViewport === next.isMobileViewport
+            && previous.visibleItemCount === next.visibleItemCount
+            ? previous
+            : next
+        })
       }
     })
 
     resizeObserver.observe(element)
-    setViewportWidth(element.clientWidth)
-    setViewportHeight(element.clientHeight)
+    setViewportProfile(getViewportProfile(element.clientWidth, element.clientHeight))
 
     return () => {
       resizeObserver.disconnect()
@@ -408,12 +414,31 @@ export const ConversationHistoryPane = forwardRef<ConversationHistoryPaneHandle,
   )
 })
 
+ConversationHistoryPaneInner.displayName = 'ConversationHistoryPane'
+
+export const ConversationHistoryPane = memo(ConversationHistoryPaneInner)
+
 function getStatusItemsSignature(
   statusItems: readonly ConversationStatusDescriptor[] = [],
 ) {
   return statusItems.map((item) => (
     `${item.id}:${item.position ?? 'tail'}:${item.status}:${item.label}:${item.createdAtMs ?? ''}`
   )).join('|')
+}
+
+function getViewportProfile(width: number, height: number): ViewportProfile {
+  const isMobileViewport = width > 0 && width < 769
+  const effectiveViewportHeight = isMobileViewport
+    ? Math.round(height * 7)
+    : height
+
+  return {
+    isMobileViewport,
+    visibleItemCount: Math.max(
+      DEFAULT_VISIBLE_ITEM_COUNT,
+      Math.ceil(effectiveViewportHeight / 88),
+    ),
+  }
 }
 
 function stickToBottom(scrollElement: HTMLDivElement | null) {

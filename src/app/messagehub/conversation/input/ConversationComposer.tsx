@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  memo,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -41,7 +42,7 @@ interface ConversationComposerProps {
   onSendMessage: (payload: ConversationComposerSubmitPayload) => void
 }
 
-export const ConversationComposer = forwardRef<
+const ConversationComposerInner = forwardRef<
   ConversationComposerHandle,
   ConversationComposerProps
 >(function ConversationComposer(
@@ -82,9 +83,11 @@ export const ConversationComposer = forwardRef<
     attachmentsRef.current = attachments
   }, [attachments])
 
+  const hasAttachments = attachments.length > 0
+
   useEffect(() => {
-    onLayoutStateChange?.({ hasAttachments: attachments.length > 0 })
-  }, [attachments.length, onLayoutStateChange])
+    onLayoutStateChange?.({ hasAttachments })
+  }, [hasAttachments, onLayoutStateChange])
 
   useEffect(() => {
     return () => {
@@ -227,12 +230,12 @@ export const ConversationComposer = forwardRef<
     event.target.value = ''
   }
 
-  const hasDraft = attachments.length > 0 || Boolean(inputValue.trim())
+  const hasDraft = hasAttachments || Boolean(inputValue.trim())
 
   return (
     <div
       ref={composerRef}
-      className="relative flex h-full min-h-0 flex-col px-3 py-2"
+      className="relative z-20 flex h-full min-h-0 flex-col gap-2 px-3 py-2"
       style={{
         borderTop: '1px solid var(--cp-border)',
         background: 'var(--cp-surface)',
@@ -253,63 +256,63 @@ export const ConversationComposer = forwardRef<
         onChange={handleFileInputChange}
       />
 
-      <div
-        className="flex min-h-0 flex-1 flex-col rounded-2xl px-3 py-2 transition-[padding,background-color] duration-200"
-        style={{
-          background: attachments.length > 0
-            ? 'color-mix(in srgb, var(--cp-accent) 10%, var(--cp-surface))'
-            : 'color-mix(in srgb, var(--cp-text) 5%, transparent)',
-        }}
-      >
-        {attachments.length > 0 ? (
-          <div className="mb-3 min-h-0 overflow-hidden rounded-2xl">
+      {hasAttachments ? (
+        <div
+          className="min-h-0 overflow-hidden rounded-[22px] border"
+          style={{
+            background: 'color-mix(in srgb, var(--cp-accent) 7%, var(--cp-surface))',
+            borderColor: 'color-mix(in srgb, var(--cp-accent) 14%, var(--cp-border))',
+          }}
+        >
+          <div
+            className="flex items-center justify-between gap-3 border-b px-3 py-2"
+            style={{
+              borderColor: 'color-mix(in srgb, var(--cp-accent) 10%, var(--cp-border))',
+              background: 'color-mix(in srgb, var(--cp-surface) 78%, transparent)',
+            }}
+          >
+            <div className="min-w-0">
+              <p
+                className="text-xs font-semibold"
+                style={{ color: 'var(--cp-text)' }}
+              >
+                {t('messagehub.attachmentsReady', 'Ready to send {{count}} items', {
+                  count: attachments.length,
+                })}
+              </p>
+              <p
+                className="text-[11px]"
+                style={{ color: 'var(--cp-muted)' }}
+              >
+                {t(
+                  'messagehub.attachmentsHint',
+                  'Paste, pick, or drop more files into this draft.',
+                )}
+              </p>
+            </div>
+            <button
+              className="rounded-lg px-2 py-1 text-xs"
+              style={{
+                color: 'var(--cp-muted)',
+                background: 'color-mix(in srgb, var(--cp-text) 6%, transparent)',
+              }}
+              onClick={clearAttachments}
+              type="button"
+            >
+              {t('messagehub.clearAttachments', 'Clear')}
+            </button>
+          </div>
+
+          <div className="min-h-0 px-2 pb-2 pt-2">
             <div
               className="flex max-h-56 min-h-0 flex-col overflow-y-auto"
               style={{
                 scrollbarGutter: 'stable',
               }}
             >
-              <div
-                className="sticky top-0 z-10 flex items-center justify-between gap-3 px-1 pb-2 pt-1"
-                style={{
-                  background: 'color-mix(in srgb, var(--cp-accent) 10%, var(--cp-surface))',
-                }}
-              >
-                <div className="min-w-0">
-                  <p
-                    className="text-xs font-semibold"
-                    style={{ color: 'var(--cp-text)' }}
-                  >
-                    {t('messagehub.attachmentsReady', 'Ready to send {{count}} items', {
-                      count: attachments.length,
-                    })}
-                  </p>
-                  <p
-                    className="text-[11px]"
-                    style={{ color: 'var(--cp-muted)' }}
-                  >
-                    {t(
-                      'messagehub.attachmentsHint',
-                      'Paste, pick, or drop more files into this draft.',
-                    )}
-                  </p>
-                </div>
-                <button
-                  className="rounded-lg px-2 py-1 text-xs"
-                  style={{
-                    color: 'var(--cp-muted)',
-                    background: 'color-mix(in srgb, var(--cp-text) 6%, transparent)',
-                  }}
-                  onClick={clearAttachments}
-                  type="button"
-                >
-                  {t('messagehub.clearAttachments', 'Clear')}
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 px-1 pb-1 sm:grid-cols-3">
+              <div className="relative z-0 grid grid-cols-2 gap-2 px-1 pb-1 sm:grid-cols-3">
                 {attachments.map((attachment) => (
-                  <AttachmentCard
+                  <MemoAttachmentCard
                     key={attachment.id}
                     attachment={attachment}
                     onRemove={handleRemoveAttachment}
@@ -317,6 +320,40 @@ export const ConversationComposer = forwardRef<
                 ))}
               </div>
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      <div
+        className="relative flex min-h-0 flex-1 flex-col rounded-[22px] border px-3 py-2"
+        style={{
+          background: hasAttachments
+            ? 'color-mix(in srgb, var(--cp-surface) 96%, white)'
+            : 'color-mix(in srgb, var(--cp-text) 5%, transparent)',
+          borderColor: hasAttachments
+            ? 'color-mix(in srgb, var(--cp-border) 92%, transparent)'
+            : 'transparent',
+        }}
+      >
+        {hasAttachments ? (
+          <div
+            className="mb-2 flex items-center justify-between gap-2 border-b pb-2"
+            style={{
+              borderColor: 'color-mix(in srgb, var(--cp-border) 86%, transparent)',
+            }}
+          >
+            <p
+              className="text-[11px] font-medium"
+              style={{ color: 'var(--cp-muted)' }}
+            >
+              {t('messagehub.inputPlaceholder', 'Message...')}
+            </p>
+            <p
+              className="text-[11px]"
+              style={{ color: 'var(--cp-muted)' }}
+            >
+              {t('messagehub.inputModeWithAttachments', 'Add context before sending')}
+            </p>
           </div>
         ) : null}
 
@@ -333,7 +370,7 @@ export const ConversationComposer = forwardRef<
 
             {pickerOpen ? (
               <div
-                className="absolute bottom-full left-0 z-20 mb-2 w-40 rounded-2xl p-1.5 shadow-lg"
+                className="absolute bottom-full left-0 z-40 mb-2 w-40 rounded-2xl p-1.5 shadow-lg"
                 style={{
                   background: 'color-mix(in srgb, var(--cp-surface) 96%, white)',
                   border: '1px solid var(--cp-border)',
@@ -398,7 +435,11 @@ export const ConversationComposer = forwardRef<
   )
 })
 
-function AttachmentCard({
+ConversationComposerInner.displayName = 'ConversationComposer'
+
+export const ConversationComposer = memo(ConversationComposerInner)
+
+const MemoAttachmentCard = memo(function AttachmentCard({
   attachment,
   onRemove,
 }: {
@@ -477,7 +518,9 @@ function AttachmentCard({
       )}
     </div>
   )
-}
+})
+
+MemoAttachmentCard.displayName = 'AttachmentCard'
 
 function FileGlyph({ filename }: { filename: string }) {
   const extension = getFileExtension(filename)

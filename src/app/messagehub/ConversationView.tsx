@@ -56,19 +56,63 @@ export function ConversationView({
   const { t } = useI18n()
   const isGroup = entity.type === 'group'
   const bodyRef = useRef<HTMLDivElement>(null)
+  const historyPaneContainerRef = useRef<HTMLDivElement>(null)
+  const composerPaneContainerRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<ConversationComposerHandle>(null)
   const dragDepthRef = useRef(0)
+  const layoutFrameRef = useRef<number | null>(null)
+  const bodyHeightRef = useRef(0)
+  const preferredComposerPaneHeightRef = useRef(DEFAULT_COMPOSER_PANE_HEIGHT)
+  const hasComposerAttachmentsRef = useRef(false)
   const resizeDragRef = useRef<{
     pointerId: number
     startY: number
     startComposerHeight: number
   } | null>(null)
   const historyPaneRef = useRef<ConversationHistoryPaneHandle>(null)
-  const [bodyHeight, setBodyHeight] = useState(0)
-  const [composerPaneHeight, setComposerPaneHeight] = useState(DEFAULT_COMPOSER_PANE_HEIGHT)
-  const [hasComposerAttachments, setHasComposerAttachments] = useState(false)
   const [isDropActive, setIsDropActive] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
+
+  const applyPaneLayout = useCallback(() => {
+    const bodyElement = bodyRef.current
+    const historyElement = historyPaneContainerRef.current
+    const composerElement = composerPaneContainerRef.current
+
+    if (!bodyElement || !historyElement || !composerElement) {
+      return
+    }
+
+    const nextBodyHeight = Math.round(bodyElement.clientHeight)
+    bodyHeightRef.current = nextBodyHeight
+
+    const effectiveComposerPaneHeight = nextBodyHeight > 0
+      ? clampComposerPaneHeight(
+        preferredComposerPaneHeightRef.current,
+        nextBodyHeight,
+        hasComposerAttachmentsRef.current,
+      )
+      : preferredComposerPaneHeightRef.current
+    const availableConversationHeight = nextBodyHeight > 0
+      ? Math.max(
+        MIN_HISTORY_PANE_HEIGHT,
+        nextBodyHeight - effectiveComposerPaneHeight - SPLITTER_HEIGHT,
+      )
+      : MIN_HISTORY_PANE_HEIGHT
+
+    historyElement.style.height = `${availableConversationHeight}px`
+    composerElement.style.height = `${effectiveComposerPaneHeight}px`
+  }, [])
+
+  const schedulePaneLayout = useCallback(() => {
+    if (layoutFrameRef.current !== null) {
+      return
+    }
+
+    layoutFrameRef.current = window.requestAnimationFrame(() => {
+      layoutFrameRef.current = null
+      applyPaneLayout()
+    })
+  }, [applyPaneLayout])
 
   useEffect(() => {
     const element = bodyRef.current
@@ -76,27 +120,39 @@ export function ConversationView({
       return
     }
 
-    const resizeObserver = new ResizeObserver((entries) => {
-      const nextHeight = Math.round(entries[0]?.contentRect.height ?? element.clientHeight)
-      setBodyHeight(nextHeight)
+    const resizeObserver = new ResizeObserver(() => {
+      schedulePaneLayout()
     })
 
     resizeObserver.observe(element)
-    setBodyHeight(element.clientHeight)
+    applyPaneLayout()
 
     return () => {
       resizeObserver.disconnect()
+      if (layoutFrameRef.current !== null) {
+        window.cancelAnimationFrame(layoutFrameRef.current)
+      }
     }
-  }, [])
+  }, [applyPaneLayout, schedulePaneLayout])
 
   const handleSendMessage = useCallback((payload: ConversationComposerSubmitPayload) => {
     onSendMessage(payload)
     historyPaneRef.current?.scrollToBottom()
   }, [onSendMessage])
 
-  const effectiveComposerPaneHeight = bodyHeight > 0
-    ? clampComposerPaneHeight(composerPaneHeight, bodyHeight, hasComposerAttachments)
-    : composerPaneHeight
+  const handleComposerLayoutStateChange = useCallback(({
+    hasAttachments,
+  }: {
+    hasAttachments: boolean
+  }) => {
+    hasComposerAttachmentsRef.current = hasAttachments
+    preferredComposerPaneHeightRef.current = (
+      hasAttachments
+        ? Math.max(preferredComposerPaneHeightRef.current, MIN_COMPOSER_PANE_HEIGHT_WITH_ATTACHMENTS)
+        : MIN_COMPOSER_PANE_HEIGHT
+    )
+    schedulePaneLayout()
+  }, [schedulePaneLayout])
 
   const handleDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
     if (!isTransferWithFiles(event.dataTransfer)) {
@@ -143,6 +199,7 @@ export function ConversationView({
   }
 
   const handleSplitterPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const bodyHeight = bodyHeightRef.current || Math.round(bodyRef.current?.clientHeight ?? 0)
     if (bodyHeight <= 0) {
       return
     }
@@ -150,7 +207,11 @@ export function ConversationView({
     resizeDragRef.current = {
       pointerId: event.pointerId,
       startY: event.clientY,
-      startComposerHeight: effectiveComposerPaneHeight,
+      startComposerHeight: clampComposerPaneHeight(
+        preferredComposerPaneHeightRef.current,
+        bodyHeight,
+        hasComposerAttachmentsRef.current,
+      ),
     }
     setIsResizing(true)
     event.currentTarget.setPointerCapture(event.pointerId)
@@ -164,7 +225,17 @@ export function ConversationView({
 
     const deltaY = event.clientY - resizeDragRef.current.startY
     const nextHeight = resizeDragRef.current.startComposerHeight - deltaY
-    setComposerPaneHeight(clampComposerPaneHeight(nextHeight, bodyHeight, hasComposerAttachments))
+    const bodyHeight = bodyHeightRef.current || Math.round(bodyRef.current?.clientHeight ?? 0)
+    if (bodyHeight <= 0) {
+      return
+    }
+
+    preferredComposerPaneHeightRef.current = clampComposerPaneHeight(
+      nextHeight,
+      bodyHeight,
+      hasComposerAttachmentsRef.current,
+    )
+    applyPaneLayout()
   }
 
   const handleSplitterPointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
@@ -176,11 +247,6 @@ export function ConversationView({
     setIsResizing(false)
     event.currentTarget.releasePointerCapture(event.pointerId)
   }
-
-  const availableConversationHeight = Math.max(
-    MIN_HISTORY_PANE_HEIGHT,
-    bodyHeight - effectiveComposerPaneHeight - SPLITTER_HEIGHT,
-  )
 
   return (
     <div
@@ -259,8 +325,12 @@ export function ConversationView({
         className="flex min-h-0 flex-1 flex-col"
       >
         <div
+          ref={historyPaneContainerRef}
           className="flex min-h-0 flex-col"
-          style={{ height: availableConversationHeight }}
+          style={{
+            height: `calc(100% - ${DEFAULT_COMPOSER_PANE_HEIGHT + SPLITTER_HEIGHT}px)`,
+            minHeight: MIN_HISTORY_PANE_HEIGHT,
+          }}
         >
           <ConversationHistoryPane
             ref={historyPaneRef}
@@ -303,15 +373,14 @@ export function ConversationView({
         </button>
 
         <div
-          className="min-h-0 flex-shrink-0 overflow-hidden"
-          style={{ height: effectiveComposerPaneHeight }}
+          ref={composerPaneContainerRef}
+          className="min-h-0 flex-shrink-0 overflow-visible"
+          style={{ height: DEFAULT_COMPOSER_PANE_HEIGHT }}
         >
           <ConversationComposer
             ref={composerRef}
             placeholder={t('messagehub.inputPlaceholder', 'Message...')}
-            onLayoutStateChange={({ hasAttachments }) => {
-              setHasComposerAttachments(hasAttachments)
-            }}
+            onLayoutStateChange={handleComposerLayoutStateChange}
             onSendMessage={handleSendMessage}
           />
         </div>

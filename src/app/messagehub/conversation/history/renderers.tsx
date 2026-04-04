@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import {
   AlertCircle,
   Check,
@@ -30,7 +31,7 @@ const messageRenderers: readonly MessageRenderer[] = [
   renderFallbackMessage,
 ]
 
-export function ConversationListRow({
+export const ConversationListRow = memo(function ConversationListRow({
   item,
   isGroup,
   selfDid,
@@ -76,7 +77,9 @@ export function ConversationListRow({
       {messageRenderers.map((renderer) => renderer(item.data, { isGroup, selfDid })).find(Boolean)}
     </>
   )
-}
+})
+
+ConversationListRow.displayName = 'ConversationListRow'
 
 function renderTextMessage(
   message: MessageObject,
