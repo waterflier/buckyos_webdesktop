@@ -31,11 +31,23 @@ const DesktopBackgroundContext =
   createContext<DesktopBackgroundContextValue | null>(null)
 
 export function DesktopBackgroundProvider({ children }: PropsWithChildren) {
-  const [background, setBackground] = useState<DesktopBackgroundState>(
+  const [background, setBackgroundRaw] = useState<DesktopBackgroundState>(
     defaultDesktopBackgroundState,
   )
+  const setBackground = useCallback((next: DesktopBackgroundState) => {
+    setBackgroundRaw((prev) => {
+      if (
+        prev.wallpaper === next.wallpaper &&
+        prev.pageCount === next.pageCount &&
+        prev.viewportProgress === next.viewportProgress
+      ) {
+        return prev
+      }
+      return next
+    })
+  }, [])
   const resetBackground = useCallback(() => {
-    setBackground(defaultDesktopBackgroundState)
+    setBackgroundRaw(defaultDesktopBackgroundState)
   }, [])
 
   const value = useMemo<DesktopBackgroundContextValue>(
@@ -44,7 +56,7 @@ export function DesktopBackgroundProvider({ children }: PropsWithChildren) {
       setBackground,
       resetBackground,
     }),
-    [background, resetBackground],
+    [background, setBackground, resetBackground],
   )
 
   return (

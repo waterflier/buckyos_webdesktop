@@ -180,11 +180,15 @@ function useSafeAreaInsets() {
 
     const update = () => {
       const cs = getComputedStyle(probe)
-      setInsets({
-        top: parseFloat(cs.paddingTop) || 0,
-        bottom: parseFloat(cs.paddingBottom) || 0,
-        left: parseFloat(cs.paddingLeft) || 0,
-        right: parseFloat(cs.paddingRight) || 0,
+      const top = parseFloat(cs.paddingTop) || 0
+      const bottom = parseFloat(cs.paddingBottom) || 0
+      const left = parseFloat(cs.paddingLeft) || 0
+      const right = parseFloat(cs.paddingRight) || 0
+      setInsets((prev) => {
+        if (prev.top === top && prev.bottom === bottom && prev.left === left && prev.right === right) {
+          return prev
+        }
+        return { top, bottom, left, right }
       })
     }
 
@@ -611,7 +615,8 @@ export function DesktopRoute() {
     const params = new URLSearchParams(searchParams)
     params.set('scenario', scenario)
     setSearchParams(params, { replace: true })
-  }, [scenario, searchParams, setSearchParams])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scenario])
 
   useEffect(() => {
     if (!data) {
@@ -658,12 +663,10 @@ export function DesktopRoute() {
     return () => resizeObserver.disconnect()
   }, [])
 
-  const resolvedDeadZone = layoutState?.deadZone ?? data?.layout.deadZone ?? {
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-  }
+  const resolvedDeadZone = useMemo(
+    () => layoutState?.deadZone ?? data?.layout.deadZone ?? { top: 0, bottom: 0, left: 0, right: 0 },
+    [layoutState?.deadZone, data?.layout.deadZone],
+  )
   const safeArea = useSafeAreaInsets()
   const desktopWorkspaceTopInset =
     safeArea.top + resolvedDeadZone.top + shellStatusBarHeight('desktop')
@@ -1314,16 +1317,21 @@ export function DesktopRoute() {
     activeMobileApp?.id,
   )
 
+  const backgroundWallpaper = useMemo(
+    () => data?.wallpaper ?? { mode: 'infinite' as const },
+    [data?.wallpaper],
+  )
+  const backgroundPageCount = layoutState?.pages.length ?? data?.layout.pages.length ?? 1
+
   useEffect(() => {
     setBackground({
-      wallpaper: data?.wallpaper ?? { mode: 'infinite' },
-      pageCount: layoutState?.pages.length ?? data?.layout.pages.length ?? 1,
+      wallpaper: backgroundWallpaper,
+      pageCount: backgroundPageCount,
       viewportProgress,
     })
   }, [
-    data?.layout.pages.length,
-    data?.wallpaper,
-    layoutState?.pages.length,
+    backgroundPageCount,
+    backgroundWallpaper,
     setBackground,
     viewportProgress,
   ])
