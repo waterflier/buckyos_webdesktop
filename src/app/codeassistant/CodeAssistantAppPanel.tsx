@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ConversationView } from '../messagehub/ConversationView'
 import { InMemoryConversationMessageReader } from '../messagehub/conversation/history/data-source'
 import type { AppendableConversationMessageReader } from '../messagehub/conversation/history/types'
+import type { ConversationComposerSubmitPayload } from '../messagehub/conversation/input/ConversationComposer'
 import { EntityDetails } from '../messagehub/EntityDetails'
 import {
   createOutgoingMockMessage,
@@ -66,7 +67,7 @@ export function CodeAssistantAppPanel(props: AppContentLoaderProps) {
     [],
   )
 
-  const handleSendMessage = useCallback((content: string) => {
+  const handleSendMessage = useCallback((payload: ConversationComposerSubmitPayload) => {
     if (!activeSession) {
       return
     }
@@ -74,7 +75,7 @@ export function CodeAssistantAppPanel(props: AppContentLoaderProps) {
     const newMessage = createOutgoingMockMessage({
       sessionId: activeSession.id,
       entityId: codeAssistantEntityId,
-      content,
+      content: buildOutgoingDraftContent(payload),
       createdAtMs: Date.now(),
     })
 
@@ -134,4 +135,30 @@ export function CodeAssistantAppPanel(props: AppContentLoaderProps) {
       ) : null}
     </div>
   )
+}
+
+function buildOutgoingDraftContent({
+  attachments,
+  content,
+}: ConversationComposerSubmitPayload): string {
+  const textContent = content.trim()
+
+  if (attachments.length === 0) {
+    return textContent
+  }
+
+  const names = attachments.map((attachment) => (
+    attachment.relativePath || attachment.file.name
+  ))
+  const visibleNames = names.slice(0, 3).join(', ')
+  const remainingCount = names.length - 3
+  const attachmentLine = remainingCount > 0
+    ? `[Mock attachments] ${attachments.length} items: ${visibleNames}, +${remainingCount} more`
+    : `[Mock attachments] ${attachments.length} items: ${visibleNames}`
+
+  if (!textContent) {
+    return attachmentLine
+  }
+
+  return `${textContent}\n\n${attachmentLine}`
 }

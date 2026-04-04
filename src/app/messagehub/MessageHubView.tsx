@@ -5,6 +5,7 @@ import { useI18n } from '../../i18n/provider'
 import { ConversationView } from './ConversationView'
 import { InMemoryConversationMessageReader } from './conversation/history/data-source'
 import type { AppendableConversationMessageReader } from './conversation/history/types'
+import type { ConversationComposerSubmitPayload } from './conversation/input/ConversationComposer'
 import { EntityDetails } from './EntityDetails'
 import { EntityList } from './EntityList'
 import {
@@ -165,11 +166,12 @@ export function MessageHubView({
     setShowSessionSidebar(false)
   }, [])
 
-  const handleSendMessage = useCallback((content: string) => {
+  const handleSendMessage = useCallback((payload: ConversationComposerSubmitPayload) => {
     if (!activeSession || !selectedEntityId) {
       return
     }
 
+    const content = buildOutgoingDraftContent(payload)
     const newMessage = createOutgoingMockMessage({
       sessionId: activeSession.id,
       entityId: selectedEntityId,
@@ -312,6 +314,32 @@ export function MessageHubView({
       ) : null}
     </div>
   )
+}
+
+function buildOutgoingDraftContent({
+  attachments,
+  content,
+}: ConversationComposerSubmitPayload): string {
+  const textContent = content.trim()
+
+  if (attachments.length === 0) {
+    return textContent
+  }
+
+  const names = attachments.map((attachment) => (
+    attachment.relativePath || attachment.file.name
+  ))
+  const visibleNames = names.slice(0, 3).join(', ')
+  const remainingCount = names.length - 3
+  const attachmentLine = remainingCount > 0
+    ? `[Mock attachments] ${attachments.length} items: ${visibleNames}, +${remainingCount} more`
+    : `[Mock attachments] ${attachments.length} items: ${visibleNames}`
+
+  if (!textContent) {
+    return attachmentLine
+  }
+
+  return `${textContent}\n\n${attachmentLine}`
 }
 
 function EmptyConversation() {

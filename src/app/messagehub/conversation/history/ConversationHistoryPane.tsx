@@ -343,7 +343,7 @@ export const ConversationHistoryPane = forwardRef<ConversationHistoryPaneHandle,
   if (!projection) {
     return (
       <div
-        className="flex-1 overflow-hidden px-3 py-2"
+        className="h-full min-h-0 flex-1 overflow-hidden px-3 py-2"
         style={{ background: 'var(--cp-bg)' }}
       >
         <div className="h-full animate-pulse rounded-3xl" style={{
@@ -357,7 +357,7 @@ export const ConversationHistoryPane = forwardRef<ConversationHistoryPaneHandle,
   return (
     <div
       ref={scrollRef}
-      className="flex-1 overflow-y-auto px-3 py-2 shell-scrollbar"
+      className="h-full min-h-0 flex-1 overflow-y-auto px-3 py-2 shell-scrollbar"
       style={{
         contain: 'strict',
         overflowAnchor: 'none',
