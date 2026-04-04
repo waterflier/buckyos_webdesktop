@@ -63,6 +63,7 @@ const ConversationHistoryPaneInner = forwardRef<ConversationHistoryPaneHandle, {
   const scrollModeRef = useRef<ScrollMode>('bottom-anchored')
   const bottomAnchorLockUntilRef = useRef(0)
   const bottomAnchorRequestIdRef = useRef(0)
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false)
   const hasProjection = projection !== null
   const { isMobileViewport, visibleItemCount } = viewportProfile
   const itemsByIndex = useMemo(() => {
@@ -114,6 +115,7 @@ const ConversationHistoryPaneInner = forwardRef<ConversationHistoryPaneHandle, {
 
       if (isAnchored) {
         scrollModeRef.current = 'bottom-anchored'
+        setShowScrollToBottom(false)
         return
       }
 
@@ -122,6 +124,7 @@ const ConversationHistoryPaneInner = forwardRef<ConversationHistoryPaneHandle, {
       }
 
       scrollModeRef.current = 'free-scroll'
+      setShowScrollToBottom(true)
       cancelBottomAnchorRequest(bottomAnchorRequestIdRef)
     }
 
@@ -346,6 +349,17 @@ const ConversationHistoryPaneInner = forwardRef<ConversationHistoryPaneHandle, {
     }
   }, [projection])
 
+  const handleScrollToBottomClick = () => {
+    setShowScrollToBottom(false)
+    requestBottomAnchor(
+      scrollModeRef,
+      bottomAnchorLockUntilRef,
+      bottomAnchorRequestIdRef,
+      scrollRef.current,
+      EXPLICIT_SCROLL_LOCK_MS,
+    )
+  }
+
   if (!projection) {
     return (
       <div
@@ -361,55 +375,75 @@ const ConversationHistoryPaneInner = forwardRef<ConversationHistoryPaneHandle, {
   }
 
   return (
-    <div
-      ref={scrollRef}
-      className="h-full min-h-0 flex-1 overflow-y-auto px-3 py-2 shell-scrollbar"
-      style={{
-        contain: 'strict',
-        overflowAnchor: 'none',
-        WebkitOverflowScrolling: 'touch',
-      }}
-    >
+    <div className="relative h-full min-h-0 flex-1">
       <div
-        ref={contentRef}
+        ref={scrollRef}
+        className="h-full overflow-y-auto px-3 py-2 shell-scrollbar"
         style={{
-          height: virtualizer.getTotalSize(),
-          position: 'relative',
-          width: '100%',
+          contain: 'strict',
+          overflowAnchor: 'none',
+          WebkitOverflowScrolling: 'touch',
         }}
       >
         <div
+          ref={contentRef}
           style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
+            height: virtualizer.getTotalSize(),
+            position: 'relative',
             width: '100%',
-            transform: `translateY(${firstVirtualItem?.start ?? 0}px)`,
           }}
         >
-          {virtualItems.map((virtualItem) => {
-            const item = itemsByIndex.get(virtualItem.index)
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              transform: `translateY(${firstVirtualItem?.start ?? 0}px)`,
+            }}
+          >
+            {virtualItems.map((virtualItem) => {
+              const item = itemsByIndex.get(virtualItem.index)
 
-            return (
-              <div
-                key={item?.key ?? `placeholder:${virtualItem.index}`}
-                ref={virtualizer.measureElement}
-                data-index={virtualItem.index}
-              >
-                {item ? (
-                  <ConversationListRow
-                    item={item}
-                    isGroup={isGroup}
-                    selfDid={selfDid}
-                  />
-                ) : (
-                  <ListItemPlaceholder />
-                )}
-              </div>
-            )
-          })}
+              return (
+                <div
+                  key={item?.key ?? `placeholder:${virtualItem.index}`}
+                  ref={virtualizer.measureElement}
+                  data-index={virtualItem.index}
+                >
+                  {item ? (
+                    <ConversationListRow
+                      item={item}
+                      isGroup={isGroup}
+                      selfDid={selfDid}
+                    />
+                  ) : (
+                    <ListItemPlaceholder />
+                  )}
+                </div>
+              )
+            })}
+          </div>
         </div>
       </div>
+      {showScrollToBottom && (
+        <button
+          type="button"
+          onClick={handleScrollToBottomClick}
+          className="absolute right-4 bottom-4 flex h-9 w-9 items-center justify-center rounded-full shadow-lg transition-opacity hover:opacity-80 active:scale-95"
+          style={{
+            background: 'var(--cp-surface)',
+            color: 'var(--cp-text)',
+            border: '1px solid color-mix(in srgb, var(--cp-text) 12%, transparent)',
+            zIndex: 10,
+          }}
+          aria-label="Scroll to bottom"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+      )}
     </div>
   )
 })
