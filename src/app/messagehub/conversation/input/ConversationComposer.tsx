@@ -39,7 +39,8 @@ export interface ConversationComposerHandle {
 
 interface ConversationComposerProps {
   placeholder: string
-  onLayoutStateChange?: (state: { hasAttachments: boolean, contentHeight: number }) => void
+  /** Max height for the entire composer (in px). Used to compute inner constraints. */
+  maxHeight?: number
   onSendMessage: (payload: ConversationComposerSubmitPayload) => void
 }
 
@@ -47,7 +48,7 @@ const ConversationComposerInner = forwardRef<
   ConversationComposerHandle,
   ConversationComposerProps
 >(function ConversationComposer(
-  { placeholder, onLayoutStateChange, onSendMessage },
+  { placeholder, maxHeight, onSendMessage },
   ref,
 ) {
   const { t } = useI18n()
@@ -56,11 +57,15 @@ const ConversationComposerInner = forwardRef<
   const [pickerOpen, setPickerOpen] = useState(false)
   const attachmentsRef = useRef<ComposerAttachmentItem[]>([])
   const composerRef = useRef<HTMLDivElement>(null)
-  const contentRef = useRef<HTMLDivElement>(null)
+  const messageInputContainerRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const directoryInputRef = useRef<HTMLInputElement>(null)
 
+  // Message input area max is 50% of the composer's max height
+  const messageInputMaxHeight = maxHeight != null ? Math.floor(maxHeight / 2) : undefined
+
+  // Auto-resize textarea to fit content; scrollbar appears when it exceeds max
   useLayoutEffect(() => {
     const element = inputRef.current
     if (!element) {
@@ -68,8 +73,18 @@ const ConversationComposerInner = forwardRef<
     }
 
     element.style.height = '0px'
-    element.style.height = `${Math.min(element.scrollHeight, 120)}px`
-  }, [inputValue])
+    const scrollHeight = element.scrollHeight
+    element.style.height = `${scrollHeight}px`
+
+    // After layout, check if the message container clips the textarea
+    requestAnimationFrame(() => {
+      const container = messageInputContainerRef.current
+      if (container) {
+        const isOverflowing = container.scrollHeight > container.clientHeight
+        element.style.overflow = isOverflowing ? 'auto' : 'hidden'
+      }
+    })
+  }, [inputValue, maxHeight])
 
   useEffect(() => {
     const element = directoryInputRef.current
@@ -86,18 +101,6 @@ const ConversationComposerInner = forwardRef<
   }, [attachments])
 
   const hasAttachments = attachments.length > 0
-
-  const reportLayoutState = useCallback(() => {
-    const contentHeight = Math.ceil(contentRef.current?.getBoundingClientRect().height ?? 0)
-    onLayoutStateChange?.({
-      hasAttachments,
-      contentHeight,
-    })
-  }, [hasAttachments, onLayoutStateChange])
-
-  useLayoutEffect(() => {
-    reportLayoutState()
-  }, [attachments.length, inputValue, reportLayoutState])
 
   useEffect(() => {
     return () => {
@@ -245,10 +248,11 @@ const ConversationComposerInner = forwardRef<
   return (
     <div
       ref={composerRef}
-      className="relative z-20 flex h-full min-h-0 flex-col"
+      className="relative z-20 flex min-h-0 flex-shrink-0 flex-col"
       style={{
         borderTop: '1px solid var(--cp-border)',
         background: 'var(--cp-surface)',
+        ...(maxHeight != null ? { maxHeight } : {}),
       }}
     >
       <input
@@ -266,135 +270,128 @@ const ConversationComposerInner = forwardRef<
         onChange={handleFileInputChange}
       />
 
+      {/* Message input area – top, max 50% of composer */}
       <div
-        ref={contentRef}
-        data-composer-content=""
-        className="mt-auto flex flex-shrink-0 flex-col gap-2 px-3 py-2"
+        ref={messageInputContainerRef}
+        className="flex flex-shrink-0 flex-col px-3 pt-2 pb-1 overflow-hidden"
+        style={messageInputMaxHeight != null ? { maxHeight: messageInputMaxHeight } : undefined}
       >
-        {hasAttachments ? (
-          <div className="min-h-0">
-            <div
-              className="flex items-center justify-between gap-3 px-1"
-            >
-              <div className="min-w-0">
-                <p
-                  className="text-[11px] font-medium"
-                  style={{ color: 'var(--cp-text)' }}
-                >
-                  {t('messagehub.attachmentsReady', 'Will send ({{count}}) items', {
-                    count: attachments.length,
-                  })}
-                </p>
-              </div>
-              <button
-                className="rounded-md px-1.5 py-0.5 text-[11px]"
-                style={{
-                  color: 'var(--cp-muted)',
-                }}
-                onClick={clearAttachments}
-                type="button"
-              >
-                {t('messagehub.clearAttachments', 'Clear')}
-              </button>
-            </div>
-
-            <div className="min-h-0 pt-1.5">
-              <div
-                className="flex max-h-56 min-h-0 flex-col overflow-y-auto"
-                style={{
-                  scrollbarGutter: 'stable',
-                }}
-              >
-                <div className="relative z-0 grid grid-cols-2 gap-1.5 px-1 pb-1 sm:grid-cols-3">
-                  {attachments.map((attachment) => (
-                    <MemoAttachmentCard
-                      key={attachment.id}
-                      attachment={attachment}
-                      onRemove={handleRemoveAttachment}
-                    />
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="relative px-1 py-1">
-          <div className="flex min-w-0 items-start gap-2">
-            <div className="relative flex-shrink-0">
-              <button
-                className="mt-1 p-1 rounded-lg flex-shrink-0 self-start"
-                style={{ color: 'var(--cp-muted)' }}
-                onClick={() => setPickerOpen((previous) => !previous)}
-                type="button"
-              >
-                <Paperclip size={18} />
-              </button>
-
-              {pickerOpen ? (
-                <div
-                  className="absolute bottom-full left-0 z-40 mb-2 w-40 rounded-2xl p-1.5 shadow-lg"
-                  style={{
-                    background: 'color-mix(in srgb, var(--cp-surface) 96%, white)',
-                    border: '1px solid var(--cp-border)',
-                  }}
-                >
-                  <button
-                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm"
-                    style={{ color: 'var(--cp-text)' }}
-                    onClick={() => fileInputRef.current?.click()}
-                    type="button"
-                  >
-                    <File size={16} />
-                    {t('messagehub.pickFile', 'Choose file')}
-                  </button>
-                  <button
-                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm"
-                    style={{ color: 'var(--cp-text)' }}
-                    onClick={() => directoryInputRef.current?.click()}
-                    type="button"
-                  >
-                    <FolderOpen size={16} />
-                    {t('messagehub.pickFolder', 'Choose folder')}
-                  </button>
-                </div>
-              ) : null}
-            </div>
-
-            <textarea
-              ref={inputRef}
-              value={inputValue}
-              onChange={(event) => setInputValue(event.target.value)}
-              onKeyDown={handleKeyDown}
-              onPaste={(event) => {
-                void handlePaste(event)
-              }}
-              placeholder={placeholder}
-              rows={1}
-              className="block min-h-[22px] flex-1 overflow-y-auto bg-transparent border-none py-1 text-sm outline-none resize-none"
-              style={{
-                color: 'var(--cp-text)',
-                maxHeight: 120,
-                lineHeight: '1.5',
-              }}
-            />
+        <div className="relative flex min-w-0 items-end gap-2 px-1 py-1">
+          <div className="relative flex-shrink-0">
             <button
-              onClick={handleSend}
-              disabled={!hasDraft}
-              className="mt-1 p-1.5 rounded-full flex-shrink-0 self-start transition-colors"
-              style={{
-                background: hasDraft
-                  ? 'var(--cp-accent)'
-                  : 'color-mix(in srgb, var(--cp-text) 10%, transparent)',
-                color: hasDraft ? '#fff' : 'var(--cp-muted)',
-              }}
+              className="p-1 rounded-lg flex-shrink-0"
+              style={{ color: 'var(--cp-muted)' }}
+              onClick={() => setPickerOpen((previous) => !previous)}
               type="button"
             >
-              <Send size={16} />
+              <Paperclip size={18} />
             </button>
+
+            {pickerOpen ? (
+              <div
+                className="absolute bottom-full left-0 z-40 mb-2 w-40 rounded-2xl p-1.5 shadow-lg"
+                style={{
+                  background: 'color-mix(in srgb, var(--cp-surface) 96%, white)',
+                  border: '1px solid var(--cp-border)',
+                }}
+              >
+                <button
+                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm"
+                  style={{ color: 'var(--cp-text)' }}
+                  onClick={() => fileInputRef.current?.click()}
+                  type="button"
+                >
+                  <File size={16} />
+                  {t('messagehub.pickFile', 'Choose file')}
+                </button>
+                <button
+                  className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm"
+                  style={{ color: 'var(--cp-text)' }}
+                  onClick={() => directoryInputRef.current?.click()}
+                  type="button"
+                >
+                  <FolderOpen size={16} />
+                  {t('messagehub.pickFolder', 'Choose folder')}
+                </button>
+              </div>
+            ) : null}
           </div>
+
+          <textarea
+            ref={inputRef}
+            value={inputValue}
+            onChange={(event) => setInputValue(event.target.value)}
+            onKeyDown={handleKeyDown}
+            onPaste={(event) => {
+              void handlePaste(event)
+            }}
+            placeholder={placeholder}
+            rows={1}
+            className="block min-h-[22px] flex-1 bg-transparent border-none py-1 text-sm outline-none resize-none"
+            style={{
+              color: 'var(--cp-text)',
+              lineHeight: '1.5',
+              overflow: 'hidden',
+            }}
+          />
+          <button
+            onClick={handleSend}
+            disabled={!hasDraft}
+            className="p-1.5 rounded-full flex-shrink-0 transition-colors"
+            style={{
+              background: hasDraft
+                ? 'var(--cp-accent)'
+                : 'color-mix(in srgb, var(--cp-text) 10%, transparent)',
+              color: hasDraft ? '#fff' : 'var(--cp-muted)',
+            }}
+            type="button"
+          >
+            <Send size={16} />
+          </button>
         </div>
       </div>
+
+      {/* Attachment area – bottom, fills remaining space */}
+      {hasAttachments ? (
+        <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-2">
+          <div
+            className="flex items-center justify-between gap-3 px-1"
+          >
+            <div className="min-w-0">
+              <p
+                className="text-[11px] font-medium"
+                style={{ color: 'var(--cp-text)' }}
+              >
+                {t('messagehub.attachmentsReady', 'Will send ({{count}}) items', {
+                  count: attachments.length,
+                })}
+              </p>
+            </div>
+            <button
+              className="rounded-md px-1.5 py-0.5 text-[11px]"
+              style={{
+                color: 'var(--cp-muted)',
+              }}
+              onClick={clearAttachments}
+              type="button"
+            >
+              {t('messagehub.clearAttachments', 'Clear')}
+            </button>
+          </div>
+
+          <div className="pt-1.5">
+            <div className="relative z-0 grid grid-cols-2 gap-1.5 px-1 pb-1 sm:grid-cols-3">
+              {attachments.map((attachment) => (
+                <MemoAttachmentCard
+                  key={attachment.id}
+                  attachment={attachment}
+                  onRemove={handleRemoveAttachment}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 })

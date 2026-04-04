@@ -2,7 +2,6 @@ import {
   ArrowLeft,
   Bot,
   FileUp,
-  GripHorizontal,
   Menu,
   MoreVertical,
   SlidersHorizontal,
@@ -40,10 +39,6 @@ interface ConversationViewProps {
 }
 
 const MIN_HISTORY_PANE_HEIGHT = 180
-const MIN_COMPOSER_PANE_HEIGHT = 72
-const MIN_COMPOSER_PANE_HEIGHT_WITH_ATTACHMENTS = 188
-const SPLITTER_HEIGHT = 12
-const DEFAULT_COMPOSER_PANE_HEIGHT = 196
 
 export function ConversationView({
   entity,
@@ -61,76 +56,36 @@ export function ConversationView({
   const { t } = useI18n()
   const isGroup = entity.type === 'group'
   const bodyRef = useRef<HTMLDivElement>(null)
-  const composerPaneContainerRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<ConversationComposerHandle>(null)
   const dragDepthRef = useRef(0)
-  const composerPaneHeightRef = useRef(DEFAULT_COMPOSER_PANE_HEIGHT)
-  const preferredHeightRef = useRef(DEFAULT_COMPOSER_PANE_HEIGHT)
-  const hasComposerAttachmentsRef = useRef(false)
-  const resizeDragRef = useRef<{
-    pointerId: number
-    startY: number
-    startComposerHeight: number
-  } | null>(null)
   const historyPaneRef = useRef<ConversationHistoryPaneHandle>(null)
   const [isDropActive, setIsDropActive] = useState(false)
-  const [isResizing, setIsResizing] = useState(false)
+  const [composerMaxHeight, setComposerMaxHeight] = useState<number | undefined>(undefined)
 
-  const applyComposerHeight = useCallback((height: number) => {
-    const bodyHeight = bodyRef.current?.clientHeight ?? 0
-    const maxHeight = bodyHeight > 0
-      ? Math.max(MIN_COMPOSER_PANE_HEIGHT, bodyHeight - MIN_HISTORY_PANE_HEIGHT - SPLITTER_HEIGHT)
-      : height
-    const clamped = Math.min(height, maxHeight)
-    composerPaneHeightRef.current = clamped
-    if (composerPaneContainerRef.current) {
-      composerPaneContainerRef.current.style.height = `${clamped}px`
-    }
-  }, [])
-
-  // Re-clamp composer height when the container resizes (e.g. window resize)
+  // Observe body height to compute composer max (50% of conversation body)
   useEffect(() => {
     const element = bodyRef.current
     if (!element) {
       return
     }
 
-    const resizeObserver = new ResizeObserver(() => {
-      applyComposerHeight(composerPaneHeightRef.current)
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setComposerMaxHeight(Math.floor(entry.contentRect.height / 2))
+      }
     })
 
-    resizeObserver.observe(element)
+    observer.observe(element)
 
     return () => {
-      resizeObserver.disconnect()
+      observer.disconnect()
     }
-  }, [applyComposerHeight])
+  }, [])
 
   const handleSendMessage = useCallback((payload: ConversationComposerSubmitPayload) => {
     onSendMessage(payload)
     historyPaneRef.current?.scrollToBottom()
   }, [onSendMessage])
-
-  const handleComposerLayoutStateChange = useCallback(({
-    hasAttachments,
-    contentHeight,
-  }: {
-    hasAttachments: boolean
-    contentHeight: number
-  }) => {
-    hasComposerAttachmentsRef.current = hasAttachments
-    const minHeight = hasAttachments
-      ? MIN_COMPOSER_PANE_HEIGHT_WITH_ATTACHMENTS
-      : MIN_COMPOSER_PANE_HEIGHT
-
-    // Reset preferred height when attachments change
-    preferredHeightRef.current = hasAttachments
-      ? Math.max(preferredHeightRef.current, MIN_COMPOSER_PANE_HEIGHT_WITH_ATTACHMENTS)
-      : MIN_COMPOSER_PANE_HEIGHT
-
-    const desiredHeight = Math.max(preferredHeightRef.current, minHeight, contentHeight)
-    applyComposerHeight(desiredHeight)
-  }, [applyComposerHeight])
 
   const handleDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
     if (!isTransferWithFiles(event.dataTransfer)) {
@@ -176,41 +131,6 @@ export function ConversationView({
     void composerRef.current?.addTransferData(event.dataTransfer)
   }
 
-  const handleSplitterPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
-    resizeDragRef.current = {
-      pointerId: event.pointerId,
-      startY: event.clientY,
-      startComposerHeight: composerPaneHeightRef.current,
-    }
-    setIsResizing(true)
-    event.currentTarget.setPointerCapture(event.pointerId)
-    event.preventDefault()
-  }
-
-  const handleSplitterPointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (!resizeDragRef.current || resizeDragRef.current.pointerId !== event.pointerId) {
-      return
-    }
-
-    const deltaY = event.clientY - resizeDragRef.current.startY
-    const nextHeight = resizeDragRef.current.startComposerHeight - deltaY
-    const minHeight = hasComposerAttachmentsRef.current
-      ? MIN_COMPOSER_PANE_HEIGHT_WITH_ATTACHMENTS
-      : MIN_COMPOSER_PANE_HEIGHT
-    const clamped = Math.max(nextHeight, minHeight)
-    preferredHeightRef.current = clamped
-    applyComposerHeight(clamped)
-  }
-
-  const handleSplitterPointerUp = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (!resizeDragRef.current || resizeDragRef.current.pointerId !== event.pointerId) {
-      return
-    }
-
-    resizeDragRef.current = null
-    setIsResizing(false)
-    event.currentTarget.releasePointerCapture(event.pointerId)
-  }
 
   return (
     <div
@@ -308,50 +228,12 @@ export function ConversationView({
             />
           </div>
 
-          <button
-            aria-label={t('messagehub.resizeComposer', 'Resize input area')}
-            className="group flex w-full flex-shrink-0 items-center justify-center"
-            onPointerDown={handleSplitterPointerDown}
-            onPointerMove={handleSplitterPointerMove}
-            onPointerUp={handleSplitterPointerUp}
-            onPointerCancel={handleSplitterPointerUp}
-            style={{
-              height: SPLITTER_HEIGHT,
-              cursor: 'row-resize',
-              background: isResizing
-                ? 'color-mix(in srgb, var(--cp-accent) 18%, transparent)'
-                : 'transparent',
-              touchAction: 'none',
-            }}
-            type="button"
-          >
-            <div
-              className="flex h-2.5 w-16 items-center justify-center rounded-full transition-colors"
-              style={{
-                background: isResizing
-                  ? 'color-mix(in srgb, var(--cp-accent) 18%, transparent)'
-                  : 'transparent',
-                color: isResizing
-                  ? 'var(--cp-accent)'
-                  : 'color-mix(in srgb, var(--cp-muted) 82%, transparent)',
-              }}
-            >
-              <GripHorizontal size={14} />
-            </div>
-          </button>
-
-          <div
-            ref={composerPaneContainerRef}
-            className="min-h-0 flex-shrink-0 overflow-visible"
-            style={{ height: DEFAULT_COMPOSER_PANE_HEIGHT }}
-          >
-            <ConversationComposer
-              ref={composerRef}
-              placeholder={t('messagehub.inputPlaceholder', 'Message...')}
-              onLayoutStateChange={handleComposerLayoutStateChange}
-              onSendMessage={handleSendMessage}
-            />
-          </div>
+          <ConversationComposer
+            ref={composerRef}
+            placeholder={t('messagehub.inputPlaceholder', 'Message...')}
+            maxHeight={composerMaxHeight}
+            onSendMessage={handleSendMessage}
+          />
         </div>
       </div>
 
