@@ -1,4 +1,4 @@
-import { X, MessageSquare, Briefcase, Layout, Plus } from 'lucide-react'
+import { X, SquarePen } from 'lucide-react'
 import { useI18n } from '../../i18n/provider'
 import type { Session } from './types'
 
@@ -7,29 +7,7 @@ interface SessionSidebarProps {
   activeSessionId: string | null
   onSelectSession: (id: string) => void
   onClose: () => void
-}
-
-function SessionIcon({ type }: { type: string }) {
-  switch (type) {
-    case 'task':
-      return <Briefcase size={16} />
-    case 'workspace':
-      return <Layout size={16} />
-    default:
-      return <MessageSquare size={16} />
-  }
-}
-
-function formatSessionTime(ts: number): string {
-  const now = Date.now()
-  const diff = now - ts
-  const mins = Math.floor(diff / 60_000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  return `${days}d ago`
+  showHeader?: boolean
 }
 
 export function SessionSidebar({
@@ -37,116 +15,101 @@ export function SessionSidebar({
   activeSessionId,
   onSelectSession,
   onClose,
+  showHeader = true,
 }: SessionSidebarProps) {
   const { t } = useI18n()
 
   return (
     <div
-      className="flex flex-col h-full"
+      className="relative flex h-full flex-col"
       style={{ background: 'var(--cp-surface)' }}
     >
-      {/* Header */}
-      <div
-        className="flex items-center justify-between px-4 py-3 flex-shrink-0"
-        style={{ borderBottom: '1px solid var(--cp-border)' }}
-      >
-        <h2
-          className="text-sm font-semibold"
-          style={{ color: 'var(--cp-text)' }}
+      {showHeader ? (
+        <div
+          className="flex items-center justify-between px-4 py-3 flex-shrink-0"
         >
-          {t('messagehub.sessions', 'Sessions')}
-        </h2>
-        <div className="flex items-center gap-1">
-          <button
-            className="p-1 rounded-lg"
-            style={{ color: 'var(--cp-muted)' }}
-            title={t('messagehub.newSession', 'New Session')}
+          <h2
+            className="text-sm font-semibold"
+            style={{ color: 'var(--cp-text)' }}
           >
-            <Plus size={18} />
-          </button>
+            {t('messagehub.sessions', 'Sessions')}
+          </h2>
           <button
             onClick={onClose}
             className="p-1 rounded-lg"
             style={{ color: 'var(--cp-muted)' }}
+            type="button"
           >
             <X size={18} />
           </button>
         </div>
-      </div>
+      ) : null}
 
       {/* Session list */}
-      <div className="flex-1 overflow-y-auto px-2 py-2 shell-scrollbar">
+      <div className={`flex-1 overflow-y-auto px-2 pb-24 shell-scrollbar ${showHeader ? '' : 'pt-2'}`}>
         {sessions.map((session) => {
           const isActive = session.id === activeSessionId
           return (
             <button
               key={session.id}
               onClick={() => onSelectSession(session.id)}
-              className="flex items-center gap-3 w-full text-left px-3 py-2.5 rounded-xl transition-colors mb-0.5"
+              className="relative mb-0.5 w-full px-3 py-2 text-left transition-colors"
               style={{
-                background: isActive
-                  ? 'color-mix(in srgb, var(--cp-accent) 14%, transparent)'
-                  : 'transparent',
+                color: 'var(--cp-text)',
               }}
+              type="button"
             >
-              <span
-                style={{
-                  color: isActive
-                    ? 'var(--cp-accent)'
-                    : 'var(--cp-muted)',
-                }}
-              >
-                <SessionIcon type={session.type} />
-              </span>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 pr-4">
+                <span
+                  className="min-w-0 flex-1 truncate text-sm"
+                  style={{
+                    color: isActive ? 'var(--cp-text)' : 'var(--cp-text)',
+                    fontWeight: isActive ? 600 : 500,
+                  }}
+                >
+                  {session.title}
+                </span>
+                {session.unreadCount > 0 ? (
                   <span
-                    className="text-sm font-medium truncate"
-                    style={{ color: 'var(--cp-text)' }}
+                    className="flex h-[18px] min-w-[18px] flex-shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-semibold"
+                    style={{
+                      background: 'var(--cp-accent)',
+                      color: '#fff',
+                    }}
                   >
-                    {session.title}
+                    {session.unreadCount}
                   </span>
-                  {session.unreadCount > 0 && (
-                    <span
-                      className="flex-shrink-0 flex items-center justify-center rounded-full text-xs font-semibold"
-                      style={{
-                        minWidth: 18,
-                        height: 18,
-                        padding: '0 5px',
-                        background: 'var(--cp-accent)',
-                        color: '#fff',
-                        fontSize: '10px',
-                      }}
-                    >
-                      {session.unreadCount}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  {session.source && (
-                    <span
-                      className="text-[10px] px-1.5 py-0.5 rounded"
-                      style={{
-                        background:
-                          'color-mix(in srgb, var(--cp-accent) 10%, transparent)',
-                        color: 'var(--cp-accent)',
-                      }}
-                    >
-                      {session.source}
-                    </span>
-                  )}
-                  <span
-                    className="text-[10px]"
-                    style={{ color: 'var(--cp-muted)' }}
-                  >
-                    {formatSessionTime(session.lastActiveAt)}
-                  </span>
-                </div>
+                ) : null}
               </div>
+
+              {isActive ? (
+                <span
+                  className="pointer-events-none absolute bottom-1.5 right-0 top-1.5 rounded-full"
+                  style={{
+                    width: 3,
+                    background: 'var(--cp-accent)',
+                    boxShadow: '0 0 0 3px color-mix(in srgb, var(--cp-accent) 12%, transparent)',
+                  }}
+                />
+              ) : null}
             </button>
           )
         })}
       </div>
+
+      <button
+        className="absolute bottom-5 right-5 flex h-10 w-10 items-center justify-center rounded-full"
+        style={{
+          background: 'transparent',
+          color: 'var(--cp-accent)',
+          border: '1px solid color-mix(in srgb, var(--cp-border) 88%, var(--cp-accent))',
+          boxShadow: '0 12px 28px color-mix(in srgb, var(--cp-shadow) 12%, transparent)',
+        }}
+        title={t('messagehub.newSession', 'New Session')}
+        type="button"
+      >
+        <SquarePen size={17} />
+      </button>
     </div>
   )
 }

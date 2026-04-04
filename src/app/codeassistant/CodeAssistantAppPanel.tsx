@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ConversationView } from '../messagehub/ConversationView'
 import { InMemoryConversationMessageReader } from '../messagehub/conversation/history/data-source'
 import type { AppendableConversationMessageReader } from '../messagehub/conversation/history/types'
@@ -12,6 +12,12 @@ import {
   mockSessions,
 } from '../messagehub/mock/data'
 import { SessionSidebar } from '../messagehub/SessionSidebar'
+import {
+  PANEL_SPLITTER_WIDTH,
+  SESSION_SIDEBAR_DEFAULT_WIDTH,
+  SESSION_SIDEBAR_MAX_WIDTH,
+  SESSION_SIDEBAR_MIN_WIDTH,
+} from '../messagehub/layout'
 import type { AppContentLoaderProps } from '../types'
 import { createCodeAssistantMockReaders } from './mockHistory'
 
@@ -25,9 +31,22 @@ export function CodeAssistantAppPanel(props: AppContentLoaderProps) {
   )
   const [showSessionSidebar, setShowSessionSidebar] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
+  const [sessionSidebarWidth, setSessionSidebarWidth] = useState(SESSION_SIDEBAR_DEFAULT_WIDTH)
+  const [isResizingSessionSidebar, setIsResizingSessionSidebar] = useState(false)
   const [localReaders, setLocalReaders] = useState<Record<string, AppendableConversationMessageReader>>(
     {},
   )
+  const panelRef = useRef<HTMLDivElement>(null)
+  const sessionSidebarWidthRef = useRef(SESSION_SIDEBAR_DEFAULT_WIDTH)
+  const sessionSidebarResizeRef = useRef<{
+    pointerId: number
+    startX: number
+    startWidth: number
+  } | null>(null)
+
+  const clampSessionSidebarWidth = useCallback((width: number) => (
+    Math.min(Math.max(width, SESSION_SIDEBAR_MIN_WIDTH), SESSION_SIDEBAR_MAX_WIDTH)
+  ), [])
 
   useEffect(() => {
     let cancelled = false
@@ -42,6 +61,28 @@ export function CodeAssistantAppPanel(props: AppContentLoaderProps) {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    sessionSidebarWidthRef.current = sessionSidebarWidth
+  }, [sessionSidebarWidth])
+
+  useEffect(() => {
+    const element = panelRef.current
+
+    if (!element) {
+      return
+    }
+
+    const resizeObserver = new ResizeObserver(() => {
+      setSessionSidebarWidth((prev) => clampSessionSidebarWidth(prev))
+    })
+
+    resizeObserver.observe(element)
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [clampSessionSidebarWidth])
 
   const entity = useMemo(
     () => mockEntities.find((item) => item.id === codeAssistantEntityId) ?? null,
@@ -85,29 +126,113 @@ export function CodeAssistantAppPanel(props: AppContentLoaderProps) {
     }))
   }, [activeSession])
 
+  const handleSessionSidebarSplitterPointerDown = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    sessionSidebarResizeRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: sessionSidebarWidthRef.current,
+    }
+    setIsResizingSessionSidebar(true)
+    event.currentTarget.setPointerCapture(event.pointerId)
+    event.preventDefault()
+  }, [])
+
+  const handleSessionSidebarSplitterPointerMove = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    if (
+      !sessionSidebarResizeRef.current ||
+      sessionSidebarResizeRef.current.pointerId !== event.pointerId
+    ) {
+      return
+    }
+
+    const deltaX = event.clientX - sessionSidebarResizeRef.current.startX
+    const nextWidth = clampSessionSidebarWidth(sessionSidebarResizeRef.current.startWidth + deltaX)
+    sessionSidebarWidthRef.current = nextWidth
+    setSessionSidebarWidth(nextWidth)
+  }, [clampSessionSidebarWidth])
+
+  const handleSessionSidebarSplitterPointerUp = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    if (
+      !sessionSidebarResizeRef.current ||
+      sessionSidebarResizeRef.current.pointerId !== event.pointerId
+    ) {
+      return
+    }
+
+    sessionSidebarResizeRef.current = null
+    setIsResizingSessionSidebar(false)
+    event.currentTarget.releasePointerCapture(event.pointerId)
+  }, [])
+
+  const desktopSessionSidebarPane = showSessionSidebar && sessions.length > 1 ? (
+    <>
+      <div
+        className="h-full flex-shrink-0"
+        style={{
+          width: sessionSidebarWidth,
+          minWidth: SESSION_SIDEBAR_MIN_WIDTH,
+          maxWidth: SESSION_SIDEBAR_MAX_WIDTH,
+          borderRight: '1px solid var(--cp-border)',
+          background: 'var(--cp-surface)',
+        }}
+      >
+        <SessionSidebar
+          sessions={sessions}
+          activeSessionId={activeSession?.id ?? null}
+          onSelectSession={setSelectedSessionId}
+          onClose={() => setShowSessionSidebar(false)}
+          showHeader={false}
+        />
+      </div>
+
+      <button
+        type="button"
+        className="group relative h-full flex-shrink-0"
+        onPointerDown={handleSessionSidebarSplitterPointerDown}
+        onPointerMove={handleSessionSidebarSplitterPointerMove}
+        onPointerUp={handleSessionSidebarSplitterPointerUp}
+        onPointerCancel={handleSessionSidebarSplitterPointerUp}
+        title="Resize session list"
+        style={{
+          width: PANEL_SPLITTER_WIDTH,
+          marginLeft: -(PANEL_SPLITTER_WIDTH / 2),
+          marginRight: -(PANEL_SPLITTER_WIDTH / 2),
+          cursor: 'col-resize',
+          background: isResizingSessionSidebar
+            ? 'color-mix(in srgb, var(--cp-accent) 8%, transparent)'
+            : 'transparent',
+          zIndex: 10,
+          touchAction: 'none',
+        }}
+      >
+        <span
+          className="pointer-events-none absolute inset-y-0 left-1/2 -translate-x-1/2 rounded-full transition-all duration-150"
+          style={{
+            width: isResizingSessionSidebar ? 3 : 1,
+            top: 18,
+            bottom: 18,
+            background: isResizingSessionSidebar
+              ? 'var(--cp-accent)'
+              : 'color-mix(in srgb, var(--cp-border) 92%, transparent)',
+            boxShadow: isResizingSessionSidebar
+              ? '0 0 0 4px color-mix(in srgb, var(--cp-accent) 12%, transparent)'
+              : 'none',
+          }}
+        />
+      </button>
+    </>
+  ) : null
+
   if (!entity || !entityDetail) {
     return null
   }
 
   return (
-    <div className="flex h-full min-h-0 bg-[color:var(--cp-bg)]">
-      {showSessionSidebar && sessions.length > 1 ? (
-        <div
-          className="h-full w-[240px] flex-shrink-0"
-          style={{ borderRight: '1px solid var(--cp-border)' }}
-        >
-          <SessionSidebar
-            sessions={sessions}
-            activeSessionId={activeSession?.id ?? null}
-            onSelectSession={(sessionId) => {
-              setSelectedSessionId(sessionId)
-              setShowSessionSidebar(false)
-            }}
-            onClose={() => setShowSessionSidebar(false)}
-          />
-        </div>
-      ) : null}
-
+    <div
+      ref={panelRef}
+      className="flex h-full min-h-0 bg-[color:var(--cp-bg)]"
+      style={{ cursor: isResizingSessionSidebar ? 'col-resize' : 'default' }}
+    >
       <div className="min-w-0 flex-1">
         <ConversationView
           entity={entity}
@@ -119,6 +244,8 @@ export function CodeAssistantAppPanel(props: AppContentLoaderProps) {
           onOpenDetails={() => setShowDetails((prev) => !prev)}
           onSendMessage={handleSendMessage}
           sessionCount={sessions.length}
+          leadingPane={desktopSessionSidebarPane}
+          isSessionSidebarOpen={showSessionSidebar && sessions.length > 1}
         />
       </div>
 

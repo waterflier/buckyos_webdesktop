@@ -9,7 +9,7 @@ import {
   User,
   Users,
 } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useI18n } from '../../i18n/provider'
 import {
   ConversationHistoryPane,
@@ -35,6 +35,8 @@ interface ConversationViewProps {
   onOpenDetails: () => void
   onSendMessage: (payload: ConversationComposerSubmitPayload) => void
   sessionCount: number
+  leadingPane?: ReactNode
+  isSessionSidebarOpen?: boolean
 }
 
 const MIN_HISTORY_PANE_HEIGHT = 180
@@ -53,6 +55,8 @@ export function ConversationView({
   onOpenDetails,
   onSendMessage,
   sessionCount,
+  leadingPane = null,
+  isSessionSidebarOpen = false,
 }: ConversationViewProps) {
   const { t } = useI18n()
   const isGroup = entity.type === 'group'
@@ -237,7 +241,12 @@ export function ConversationView({
           <button
             onClick={onOpenSessionSidebar}
             className="p-1.5 rounded-lg"
-            style={{ color: 'var(--cp-muted)' }}
+            style={{
+              color: isSessionSidebarOpen ? 'var(--cp-accent)' : 'var(--cp-muted)',
+              background: isSessionSidebarOpen
+                ? 'color-mix(in srgb, var(--cp-accent) 12%, transparent)'
+                : 'transparent',
+            }}
             type="button"
           >
             <Menu size={18} />
@@ -280,65 +289,69 @@ export function ConversationView({
         </button>
       </div>
 
-      <div
-        ref={bodyRef}
-        className="flex min-h-0 flex-1 flex-col"
-      >
-        <div
-          className="flex flex-1 min-h-0 flex-col"
-          style={{ minHeight: MIN_HISTORY_PANE_HEIGHT }}
-        >
-          <ConversationHistoryPane
-            ref={historyPaneRef}
-            reader={messageReader}
-            selfDid={selfDid}
-            isGroup={isGroup}
-          />
-        </div>
+      <div className="flex min-h-0 flex-1">
+        {leadingPane}
 
-        <button
-          aria-label={t('messagehub.resizeComposer', 'Resize input area')}
-          className="group flex w-full flex-shrink-0 items-center justify-center"
-          onPointerDown={handleSplitterPointerDown}
-          onPointerMove={handleSplitterPointerMove}
-          onPointerUp={handleSplitterPointerUp}
-          onPointerCancel={handleSplitterPointerUp}
-          style={{
-            height: SPLITTER_HEIGHT,
-            cursor: 'row-resize',
-            background: isResizing
-              ? 'color-mix(in srgb, var(--cp-accent) 12%, transparent)'
-              : 'transparent',
-            touchAction: 'none',
-          }}
-          type="button"
+        <div
+          ref={bodyRef}
+          className="flex min-h-0 flex-1 flex-col"
         >
           <div
-            className="flex h-2.5 w-16 items-center justify-center rounded-full transition-colors"
+            className="flex flex-1 min-h-0 flex-col"
+            style={{ minHeight: MIN_HISTORY_PANE_HEIGHT }}
+          >
+            <ConversationHistoryPane
+              ref={historyPaneRef}
+              reader={messageReader}
+              selfDid={selfDid}
+              isGroup={isGroup}
+            />
+          </div>
+
+          <button
+            aria-label={t('messagehub.resizeComposer', 'Resize input area')}
+            className="group flex w-full flex-shrink-0 items-center justify-center"
+            onPointerDown={handleSplitterPointerDown}
+            onPointerMove={handleSplitterPointerMove}
+            onPointerUp={handleSplitterPointerUp}
+            onPointerCancel={handleSplitterPointerUp}
             style={{
+              height: SPLITTER_HEIGHT,
+              cursor: 'row-resize',
               background: isResizing
                 ? 'color-mix(in srgb, var(--cp-accent) 18%, transparent)'
                 : 'transparent',
-              color: isResizing
-                ? 'var(--cp-accent)'
-                : 'color-mix(in srgb, var(--cp-muted) 82%, transparent)',
+              touchAction: 'none',
             }}
+            type="button"
           >
-            <GripHorizontal size={14} />
-          </div>
-        </button>
+            <div
+              className="flex h-2.5 w-16 items-center justify-center rounded-full transition-colors"
+              style={{
+                background: isResizing
+                  ? 'color-mix(in srgb, var(--cp-accent) 18%, transparent)'
+                  : 'transparent',
+                color: isResizing
+                  ? 'var(--cp-accent)'
+                  : 'color-mix(in srgb, var(--cp-muted) 82%, transparent)',
+              }}
+            >
+              <GripHorizontal size={14} />
+            </div>
+          </button>
 
-        <div
-          ref={composerPaneContainerRef}
-          className="min-h-0 flex-shrink-0 overflow-visible"
-          style={{ height: DEFAULT_COMPOSER_PANE_HEIGHT }}
-        >
-          <ConversationComposer
-            ref={composerRef}
-            placeholder={t('messagehub.inputPlaceholder', 'Message...')}
-            onLayoutStateChange={handleComposerLayoutStateChange}
-            onSendMessage={handleSendMessage}
-          />
+          <div
+            ref={composerPaneContainerRef}
+            className="min-h-0 flex-shrink-0 overflow-visible"
+            style={{ height: DEFAULT_COMPOSER_PANE_HEIGHT }}
+          >
+            <ConversationComposer
+              ref={composerRef}
+              placeholder={t('messagehub.inputPlaceholder', 'Message...')}
+              onLayoutStateChange={handleComposerLayoutStateChange}
+              onSendMessage={handleSendMessage}
+            />
+          </div>
         </div>
       </div>
 
