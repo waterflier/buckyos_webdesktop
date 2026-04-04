@@ -108,9 +108,9 @@ function renderTextMessage(
         className="max-w-[75%] min-w-[80px]"
         style={{
           background: isSelf
-            ? 'var(--cp-accent)'
+            ? 'var(--cp-message-self-bg)'
             : 'color-mix(in srgb, var(--cp-text) 8%, transparent)',
-          color: isSelf ? '#fff' : 'var(--cp-text)',
+          color: isSelf ? 'var(--cp-message-self-text)' : 'var(--cp-text)',
           borderRadius: isSelf
             ? '18px 18px 4px 18px'
             : '18px 18px 18px 4px',
@@ -133,7 +133,7 @@ function renderTextMessage(
             className="text-[10px]"
             style={{
               color: isSelf
-                ? 'rgba(255,255,255,0.66)'
+                ? 'var(--cp-message-self-meta)'
                 : 'var(--cp-muted)',
             }}
           >
@@ -169,9 +169,9 @@ function renderImageMessage(
         className="max-w-[75%] min-w-[120px]"
         style={{
           background: isSelf
-            ? 'var(--cp-accent)'
+            ? 'var(--cp-message-self-bg)'
             : 'color-mix(in srgb, var(--cp-text) 8%, transparent)',
-          color: isSelf ? '#fff' : 'var(--cp-text)',
+          color: isSelf ? 'var(--cp-message-self-text)' : 'var(--cp-text)',
           borderRadius: isSelf
             ? '18px 18px 4px 18px'
             : '18px 18px 18px 4px',
@@ -205,7 +205,7 @@ function renderImageMessage(
             className="text-[10px]"
             style={{
               color: isSelf
-                ? 'rgba(255,255,255,0.66)'
+                ? 'var(--cp-message-self-meta)'
                 : 'var(--cp-muted)',
             }}
           >
@@ -277,7 +277,7 @@ function ImageRefPreview({
   imageRef: ImageRefDescriptor
   isSelf: boolean
 }) {
-  const linkColor = isSelf ? 'rgba(255,255,255,0.92)' : 'var(--cp-accent)'
+  const linkColor = isSelf ? 'var(--cp-message-self-link)' : 'var(--cp-accent)'
 
   if (!imageRef.isTrusted) {
     return (

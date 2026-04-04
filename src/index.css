@@ -24,6 +24,10 @@
   --cp-wallpaper-a: oklch(0.975 0.018 292);
   --cp-wallpaper-b: oklch(0.91 0.037 249);
   --cp-wallpaper-c: oklch(0.94 0.026 335);
+  --cp-message-self-bg: var(--cp-accent);
+  --cp-message-self-text: oklch(0.985 0.006 286);
+  --cp-message-self-meta: rgba(255, 255, 255, 0.66);
+  --cp-message-self-link: rgba(255, 255, 255, 0.92);
   --cp-focus-ring: color-mix(in srgb, var(--cp-accent) 46%, transparent);
   --cp-panel-shadow: 0 22px 60px color-mix(in srgb, var(--cp-shadow) 10%, transparent);
   --cp-window-shadow: 0 30px 90px color-mix(in srgb, var(--cp-shadow) 18%, transparent);
@@ -59,6 +63,10 @@
   --cp-wallpaper-a: oklch(0.29 0.032 272);
   --cp-wallpaper-b: oklch(0.24 0.04 247);
   --cp-wallpaper-c: oklch(0.27 0.028 322);
+  --cp-message-self-bg: color-mix(in srgb, var(--cp-success) 28%, var(--cp-bg-strong));
+  --cp-message-self-text: var(--cp-text);
+  --cp-message-self-meta: color-mix(in srgb, var(--cp-text) 62%, transparent);
+  --cp-message-self-link: color-mix(in srgb, var(--cp-text) 92%, transparent);
   --cp-focus-ring: color-mix(in srgb, var(--cp-accent) 56%, transparent);
   --cp-panel-shadow: 0 28px 70px color-mix(in srgb, var(--cp-shadow) 32%, transparent);
   --cp-window-shadow: 0 36px 110px color-mix(in srgb, var(--cp-shadow) 42%, transparent);

@@ -3,7 +3,6 @@ import {
   ArrowLeft,
   BellOff,
   Bot,
-  ChevronDown,
   ChevronRight,
   Pin,
   Search,
@@ -164,6 +163,25 @@ function countUnread(entities: Entity[]): number {
   return entities.reduce((total, entity) => total + entity.unreadCount, 0)
 }
 
+function InlineExpandIndicator({ isExpanded }: { isExpanded: boolean }) {
+  return (
+    <span
+      className="pointer-events-none absolute top-1/2 block -translate-y-1/2 transition-transform duration-150"
+      aria-hidden="true"
+      style={{
+        left: 'calc(0.375rem - 2px)',
+        width: 0,
+        height: 0,
+        borderTop: '4px solid transparent',
+        borderBottom: '4px solid transparent',
+        borderLeft: '5px solid var(--cp-muted)',
+        transform: `translateY(-50%) rotate(${isExpanded ? 90 : 0}deg)`,
+        transformOrigin: '38% 50%',
+      }}
+    />
+  )
+}
+
 function EntityAvatar({
   entity,
   size = 48,
@@ -222,24 +240,18 @@ function TopLevelEntityItem({
   isSelected: boolean
   onSelect: () => void
 }) {
-  const childAffordance = hasDrilldownChildren(entity)
-    ? <ChevronRight size={15} />
-    : hasInlineChildren(entity)
-      ? (isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />)
-      : null
-
   return (
     <button
       onClick={onSelect}
-      className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors"
+      className="relative flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors"
       style={{
-        borderRadius: 14,
         background: isSelected
           ? 'color-mix(in srgb, var(--cp-accent) 14%, transparent)'
           : 'transparent',
       }}
       type="button"
     >
+      {hasInlineChildren(entity) ? <InlineExpandIndicator isExpanded={isExpanded} /> : null}
       <EntityAvatar entity={entity} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
@@ -264,17 +276,6 @@ function TopLevelEntityItem({
                 style={{ color: 'var(--cp-muted)' }}
               >
                 {formatTime(entity.lastMessage.timestamp)}
-              </span>
-            ) : null}
-            {childAffordance ? (
-              <span
-                className="flex h-6 w-6 items-center justify-center rounded-full"
-                style={{
-                  color: 'var(--cp-muted)',
-                  background: 'color-mix(in srgb, var(--cp-text) 6%, transparent)',
-                }}
-              >
-                {childAffordance}
               </span>
             ) : null}
           </div>
@@ -322,9 +323,8 @@ function InlineChildItem({
   return (
     <button
       onClick={onSelect}
-      className="flex w-full items-center gap-2.5 px-2.5 py-1.5 text-left transition-colors"
+      className="flex w-full items-center gap-2.5 px-4 py-1.5 text-left transition-colors"
       style={{
-        borderRadius: 11,
         background: isSelected
           ? 'color-mix(in srgb, var(--cp-accent) 11%, transparent)'
           : 'transparent',
@@ -402,9 +402,8 @@ function DrilldownEntityRow({
   return (
     <button
       onClick={onSelect}
-      className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors"
+      className="flex w-full items-center gap-3 px-4 py-2 text-left transition-colors"
       style={{
-        borderRadius: 14,
         background: isSelected
           ? 'color-mix(in srgb, var(--cp-accent) 12%, transparent)'
           : 'transparent',
@@ -729,7 +728,7 @@ export function EntityList({
             ))}
           </div>
 
-          <div className="flex-1 overflow-y-auto px-2 pb-2 shell-scrollbar">
+          <div className="flex-1 overflow-y-auto pb-2 shell-scrollbar">
             {filtered.length === 0 ? (
               <div className="flex h-32 items-center justify-center">
                 <p className="text-sm" style={{ color: 'var(--cp-muted)' }}>
@@ -751,7 +750,7 @@ export function EntityList({
 
                     {hasInlineChildren(entity) && isExpanded ? (
                       <div
-                        className="ml-9 mt-1 border-l pl-3"
+                        className="ml-7 mt-1 border-l pl-2"
                         style={{
                           borderColor: 'color-mix(in srgb, var(--cp-border) 90%, transparent)',
                         }}
