@@ -67,6 +67,51 @@ test('mobile viewport opens in-place app with system title bar', async ({
   expect(consoleErrors).toEqual([])
 })
 
+test('mobile launcher shows AI Center and opens panel content', async ({
+  page,
+}) => {
+  const consoleErrors: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'error') {
+      consoleErrors.push(message.text())
+    }
+  })
+
+  await page.goto('/?scenario=normal')
+
+  const aiCenterButton = page.getByRole('button', { name: 'AI Center' })
+  await expect(aiCenterButton).toBeVisible()
+
+  const aiCenterBox = await aiCenterButton.boundingBox()
+  expect(aiCenterBox).not.toBeNull()
+
+  const startX = (aiCenterBox?.x ?? 0) + (aiCenterBox?.width ?? 0) / 2
+  const startY = (aiCenterBox?.y ?? 0) + (aiCenterBox?.height ?? 0) / 2
+
+  await aiCenterButton.dispatchEvent('pointerdown', {
+    bubbles: true,
+    clientX: startX,
+    clientY: startY,
+    pointerId: 3,
+    pointerType: 'touch',
+  })
+  await page.locator('body').dispatchEvent('pointerup', {
+    bubbles: true,
+    clientX: startX + 6,
+    clientY: startY + 5,
+    pointerId: 3,
+    pointerType: 'touch',
+  })
+
+  await expect(page.getByText('AI Features Not Enabled')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Get Started' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'App menu' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Minimize' })).toBeVisible()
+  await expect(page.getByText('Manage AI providers, models, usage, and routing.')).toBeVisible()
+
+  expect(consoleErrors).toEqual([])
+})
+
 test('mobile demos exposes dialog trigger and opens centered dialog', async ({
   page,
 }) => {
