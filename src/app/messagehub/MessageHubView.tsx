@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMediaQuery } from '@mui/material'
-import { MessageSquare } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MessageSquare } from 'lucide-react'
 import { useI18n } from '../../i18n/provider'
 import { ConversationView } from './ConversationView'
 import { InMemoryConversationMessageReader } from './conversation/history/data-source'
@@ -24,6 +24,11 @@ import type {
 } from './types'
 
 const EMPTY_READER = InMemoryConversationMessageReader.empty()
+const ENTITY_LIST_DEFAULT_WIDTH = 340
+const ENTITY_LIST_MIN_WIDTH = 280
+const ENTITY_LIST_MAX_WIDTH = 520
+const ENTITY_LIST_COLLAPSED_WIDTH = 68
+const ENTITY_LIST_SPLITTER_WIDTH = 6
 
 function findEntityById(id: string | null) {
   if (!id) {
@@ -60,6 +65,7 @@ export function MessageHubView({
 }: {
   initialEntityId?: string | null
 }) {
+  const { t } = useI18n()
   const isDesktop = useMediaQuery('(min-width: 769px)')
   const resolvedInitialEntityId = findEntityById(initialEntityId)?.id ?? null
 
@@ -74,9 +80,23 @@ export function MessageHubView({
   )
   const [showSessionSidebar, setShowSessionSidebar] = useState(false)
   const [showDetails, setShowDetails] = useState(false)
+  const [entityListWidth, setEntityListWidth] = useState(ENTITY_LIST_DEFAULT_WIDTH)
+  const [isEntityListCollapsed, setIsEntityListCollapsed] = useState(false)
+  const [isResizingEntityList, setIsResizingEntityList] = useState(false)
   const [localReaders, setLocalReaders] = useState<Record<string, AppendableConversationMessageReader>>(
     () => ({ ...mockMessageReaders }),
   )
+  const desktopLayoutRef = useRef<HTMLDivElement>(null)
+  const entityListWidthRef = useRef(ENTITY_LIST_DEFAULT_WIDTH)
+  const entityListResizeRef = useRef<{
+    pointerId: number
+    startX: number
+    startWidth: number
+  } | null>(null)
+
+  const clampEntityListWidth = useCallback((width: number) => (
+    Math.min(Math.max(width, ENTITY_LIST_MIN_WIDTH), ENTITY_LIST_MAX_WIDTH)
+  ), [])
 
   useEffect(() => {
     let cancelled = false
@@ -94,6 +114,28 @@ export function MessageHubView({
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    entityListWidthRef.current = entityListWidth
+  }, [entityListWidth])
+
+  useEffect(() => {
+    const element = desktopLayoutRef.current
+
+    if (!isDesktop || !element) {
+      return
+    }
+
+    const resizeObserver = new ResizeObserver(() => {
+      setEntityListWidth((prev) => clampEntityListWidth(prev))
+    })
+
+    resizeObserver.observe(element)
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [clampEntityListWidth, isDesktop])
 
   const selectedEntity = useMemo(
     () => findEntityById(selectedEntityId),
@@ -164,6 +206,59 @@ export function MessageHubView({
   const handleSelectSession = useCallback((id: string) => {
     setSelectedSessionId(id)
     setShowSessionSidebar(false)
+  }, [])
+
+  const handleCollapseEntityList = useCallback(() => {
+    setIsEntityListCollapsed(true)
+    setIsResizingEntityList(false)
+    entityListResizeRef.current = null
+  }, [])
+
+  const handleExpandEntityList = useCallback(() => {
+    setIsEntityListCollapsed(false)
+    setEntityListWidth(clampEntityListWidth(entityListWidthRef.current))
+  }, [clampEntityListWidth])
+
+  const handleEntityListSplitterPointerDown = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    if (isEntityListCollapsed) {
+      return
+    }
+
+    entityListResizeRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: entityListWidthRef.current,
+    }
+    setIsResizingEntityList(true)
+    event.currentTarget.setPointerCapture(event.pointerId)
+    event.preventDefault()
+  }, [isEntityListCollapsed])
+
+  const handleEntityListSplitterPointerMove = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    if (
+      !entityListResizeRef.current ||
+      entityListResizeRef.current.pointerId !== event.pointerId
+    ) {
+      return
+    }
+
+    const deltaX = event.clientX - entityListResizeRef.current.startX
+    const nextWidth = clampEntityListWidth(entityListResizeRef.current.startWidth + deltaX)
+    entityListWidthRef.current = nextWidth
+    setEntityListWidth(nextWidth)
+  }, [clampEntityListWidth])
+
+  const handleEntityListSplitterPointerUp = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    if (
+      !entityListResizeRef.current ||
+      entityListResizeRef.current.pointerId !== event.pointerId
+    ) {
+      return
+    }
+
+    entityListResizeRef.current = null
+    setIsResizingEntityList(false)
+    event.currentTarget.releasePointerCapture(event.pointerId)
   }, [])
 
   const handleSendMessage = useCallback((payload: ConversationComposerSubmitPayload) => {
@@ -247,24 +342,124 @@ export function MessageHubView({
   }
 
   return (
-    <div className="flex h-full w-full" style={{ background: 'var(--cp-bg)', zIndex: 1 }}>
+    <div
+      ref={desktopLayoutRef}
+      className="flex h-full w-full"
+      style={{
+        background: 'var(--cp-bg)',
+        zIndex: 1,
+        cursor: isResizingEntityList ? 'col-resize' : 'default',
+      }}
+    >
       <div
         className="h-full flex-shrink-0"
         style={{
-          width: 340,
+          width: isEntityListCollapsed ? ENTITY_LIST_COLLAPSED_WIDTH : entityListWidth,
+          minWidth: isEntityListCollapsed ? ENTITY_LIST_COLLAPSED_WIDTH : ENTITY_LIST_MIN_WIDTH,
+          maxWidth: isEntityListCollapsed ? ENTITY_LIST_COLLAPSED_WIDTH : ENTITY_LIST_MAX_WIDTH,
           borderRight: '1px solid var(--cp-border)',
+          background: 'var(--cp-surface)',
+          transition: isResizingEntityList ? 'none' : 'width 220ms var(--cp-ease-emphasis)',
         }}
       >
-        <EntityList
-          entities={mockEntities}
-          selectedEntityId={selectedEntityId}
-          filter={filter}
-          searchQuery={searchQuery}
-          onSelectEntity={handleSelectEntity}
-          onFilterChange={setFilter}
-          onSearchChange={setSearchQuery}
-        />
+        {isEntityListCollapsed ? (
+          <div
+            className="flex h-full flex-col items-center gap-3 px-2 py-4"
+            style={{
+              background:
+                'linear-gradient(180deg, color-mix(in srgb, var(--cp-surface) 96%, transparent), color-mix(in srgb, var(--cp-surface-2) 94%, transparent))',
+            }}
+          >
+            <button
+              type="button"
+              onClick={handleExpandEntityList}
+              className="flex h-10 w-10 items-center justify-center rounded-2xl"
+              style={{
+                color: 'var(--cp-accent)',
+                background: 'color-mix(in srgb, var(--cp-accent) 12%, transparent)',
+              }}
+              aria-label={t('messagehub.expandEntityList', 'Expand entity list')}
+              title={t('messagehub.expandEntityList', 'Expand entity list')}
+            >
+              <ChevronRight size={18} />
+            </button>
+            <div
+              className="flex flex-1 items-center justify-center"
+              style={{ color: 'var(--cp-muted)' }}
+            >
+              <span
+                className="text-[11px] font-semibold uppercase tracking-[0.24em]"
+                style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+              >
+                {t('messagehub.entitiesShort', 'Entities')}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <EntityList
+            entities={mockEntities}
+            selectedEntityId={selectedEntityId}
+            filter={filter}
+            searchQuery={searchQuery}
+            headerActions={(
+              <button
+                type="button"
+                onClick={handleCollapseEntityList}
+                className="flex h-9 w-9 items-center justify-center rounded-xl"
+                style={{
+                  color: 'var(--cp-muted)',
+                  background: 'color-mix(in srgb, var(--cp-text) 7%, transparent)',
+                }}
+                aria-label={t('messagehub.collapseEntityList', 'Collapse entity list')}
+                title={t('messagehub.collapseEntityList', 'Collapse entity list')}
+              >
+                <ChevronLeft size={18} />
+              </button>
+            )}
+            onSelectEntity={handleSelectEntity}
+            onFilterChange={setFilter}
+            onSearchChange={setSearchQuery}
+          />
+        )}
       </div>
+
+      <button
+        type="button"
+        disabled={isEntityListCollapsed}
+        className="group relative h-full flex-shrink-0"
+        onPointerDown={handleEntityListSplitterPointerDown}
+        onPointerMove={handleEntityListSplitterPointerMove}
+        onPointerUp={handleEntityListSplitterPointerUp}
+        onPointerCancel={handleEntityListSplitterPointerUp}
+        aria-hidden={isEntityListCollapsed}
+        tabIndex={isEntityListCollapsed ? -1 : 0}
+        title={t('messagehub.resizeEntityList', 'Resize entity list')}
+        style={{
+          width: ENTITY_LIST_SPLITTER_WIDTH,
+          marginLeft: -(ENTITY_LIST_SPLITTER_WIDTH / 2),
+          marginRight: -(ENTITY_LIST_SPLITTER_WIDTH / 2),
+          cursor: isEntityListCollapsed ? 'default' : 'col-resize',
+          background: isResizingEntityList
+            ? 'color-mix(in srgb, var(--cp-accent) 8%, transparent)'
+            : 'transparent',
+          zIndex: 10,
+        }}
+      >
+        <span
+          className="pointer-events-none absolute inset-y-0 left-1/2 -translate-x-1/2 rounded-full transition-all duration-150"
+          style={{
+            width: isResizingEntityList ? 3 : 1,
+            top: 18,
+            bottom: 18,
+            background: isResizingEntityList
+              ? 'var(--cp-accent)'
+              : 'color-mix(in srgb, var(--cp-border) 92%, transparent)',
+            boxShadow: isResizingEntityList
+              ? '0 0 0 4px color-mix(in srgb, var(--cp-accent) 12%, transparent)'
+              : 'none',
+          }}
+        />
+      </button>
 
       {showSessionSidebar && sessions.length > 1 ? (
         <div

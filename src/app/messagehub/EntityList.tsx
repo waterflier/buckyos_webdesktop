@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import {
   Search,
   SlidersHorizontal,
@@ -16,6 +16,7 @@ interface EntityListProps {
   selectedEntityId: string | null
   filter: EntityFilter
   searchQuery: string
+  headerActions?: ReactNode
   onSelectEntity: (id: string) => void
   onFilterChange: (filter: EntityFilter) => void
   onSearchChange: (query: string) => void
@@ -187,6 +188,7 @@ export function EntityList({
   selectedEntityId,
   filter,
   searchQuery,
+  headerActions,
   onSelectEntity,
   onFilterChange,
   onSearchChange,
@@ -214,12 +216,19 @@ export function EntityList({
     >
       {/* Header */}
       <div className="px-4 pt-4 pb-2">
-        <h1
-          className="text-lg font-bold mb-3"
-          style={{ color: 'var(--cp-text)' }}
-        >
-          {t('messagehub.title', 'MessageHub')}
-        </h1>
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <h1
+            className="text-lg font-bold min-w-0"
+            style={{ color: 'var(--cp-text)' }}
+          >
+            {t('messagehub.title', 'MessageHub')}
+          </h1>
+          {headerActions ? (
+            <div className="flex flex-shrink-0 items-center gap-2">
+              {headerActions}
+            </div>
+          ) : null}
+        </div>
 
         {/* Search */}
         <div
