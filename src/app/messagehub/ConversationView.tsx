@@ -63,6 +63,7 @@ export function ConversationView({
   const layoutFrameRef = useRef<number | null>(null)
   const bodyHeightRef = useRef(0)
   const preferredComposerPaneHeightRef = useRef(DEFAULT_COMPOSER_PANE_HEIGHT)
+  const composerContentHeightRef = useRef(MIN_COMPOSER_PANE_HEIGHT)
   const hasComposerAttachmentsRef = useRef(false)
   const resizeDragRef = useRef<{
     pointerId: number
@@ -85,13 +86,17 @@ export function ConversationView({
     const nextBodyHeight = Math.round(bodyElement.clientHeight)
     bodyHeightRef.current = nextBodyHeight
 
+    const requestedComposerPaneHeight = Math.max(
+      preferredComposerPaneHeightRef.current,
+      composerContentHeightRef.current,
+    )
     const effectiveComposerPaneHeight = nextBodyHeight > 0
       ? clampComposerPaneHeight(
-        preferredComposerPaneHeightRef.current,
+        requestedComposerPaneHeight,
         nextBodyHeight,
         hasComposerAttachmentsRef.current,
       )
-      : preferredComposerPaneHeightRef.current
+      : requestedComposerPaneHeight
     const availableConversationHeight = nextBodyHeight > 0
       ? Math.max(
         MIN_HISTORY_PANE_HEIGHT,
@@ -142,10 +147,16 @@ export function ConversationView({
 
   const handleComposerLayoutStateChange = useCallback(({
     hasAttachments,
+    contentHeight,
   }: {
     hasAttachments: boolean
+    contentHeight: number
   }) => {
     hasComposerAttachmentsRef.current = hasAttachments
+    composerContentHeightRef.current = Math.max(
+      hasAttachments ? MIN_COMPOSER_PANE_HEIGHT_WITH_ATTACHMENTS : MIN_COMPOSER_PANE_HEIGHT,
+      contentHeight,
+    )
     preferredComposerPaneHeightRef.current = (
       hasAttachments
         ? Math.max(preferredComposerPaneHeightRef.current, MIN_COMPOSER_PANE_HEIGHT_WITH_ATTACHMENTS)
