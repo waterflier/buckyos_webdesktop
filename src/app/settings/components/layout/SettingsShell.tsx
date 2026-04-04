@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useMediaQuery } from '@mui/material'
 import { Sidebar } from './Sidebar'
-import { MobileTabBar } from './MobileTabBar'
+import { MobileSettingsList } from './MobileSettingsList'
+import { MobileDetailHeader } from './MobileDetailHeader'
 import type { SettingsPage } from './Sidebar'
 
 interface SettingsShellProps {
@@ -9,27 +10,48 @@ interface SettingsShellProps {
 }
 
 export function SettingsShell({ children }: SettingsShellProps) {
-  const [currentPage, setCurrentPage] = useState<SettingsPage>('general')
+  const [currentPage, setCurrentPage] = useState<SettingsPage | null>(null)
   const isMobile = useMediaQuery('(max-width: 767px)')
+
+  // Mobile: null = show list, non-null = show detail page
+  // Desktop: always show a page (default to 'general')
+  const activePage = isMobile ? currentPage : (currentPage ?? 'general')
+
+  const handleNavigate = (page: SettingsPage) => setCurrentPage(page)
+  const handleBack = () => setCurrentPage(null)
 
   return (
     <div className="flex flex-col h-full w-full" style={{ background: 'var(--cp-bg)' }}>
-      {isMobile && (
-        <MobileTabBar currentPage={currentPage} onNavigate={setCurrentPage} />
-      )}
-      <div className="flex flex-1 min-h-0">
-        {!isMobile && (
-          <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} />
-        )}
-        <main
-          className="flex-1 overflow-y-auto"
-          style={{ background: 'var(--cp-bg)' }}
-        >
-          <div className={isMobile ? 'px-4 py-4' : 'px-6 py-5 max-w-4xl'}>
-            {children(currentPage, setCurrentPage)}
+      {isMobile ? (
+        // Mobile: drill-in navigation
+        activePage === null ? (
+          <div className="flex-1 overflow-y-auto">
+            <MobileSettingsList onNavigate={handleNavigate} />
           </div>
-        </main>
-      </div>
+        ) : (
+          <>
+            <MobileDetailHeader onBack={handleBack} />
+            <main className="flex-1 overflow-y-auto">
+              <div className="px-4 py-4">
+                {children(activePage, handleNavigate)}
+              </div>
+            </main>
+          </>
+        )
+      ) : (
+        // Desktop: sidebar + content
+        <div className="flex flex-1 min-h-0">
+          <Sidebar currentPage={activePage!} onNavigate={handleNavigate} />
+          <main
+            className="flex-1 overflow-y-auto"
+            style={{ background: 'var(--cp-bg)' }}
+          >
+            <div className="px-6 py-5 max-w-4xl">
+              {children(activePage!, handleNavigate)}
+            </div>
+          </main>
+        </div>
+      )}
     </div>
   )
 }
