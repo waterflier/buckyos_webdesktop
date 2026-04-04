@@ -289,6 +289,8 @@ export function MessageHubView({
             selectedEntityId={selectedEntityId}
             filter={filter}
             searchQuery={searchQuery}
+            enableDrilldownNavigation={false}
+            useCompactInlineChildren={false}
             onSelectEntity={handleSelectEntity}
             onFilterChange={setFilter}
             onSearchChange={setSearchQuery}
@@ -401,6 +403,8 @@ export function MessageHubView({
             selectedEntityId={selectedEntityId}
             filter={filter}
             searchQuery={searchQuery}
+            enableDrilldownNavigation
+            useCompactInlineChildren
             headerActions={(
               <button
                 type="button"

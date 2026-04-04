@@ -1,6 +1,14 @@
 /* ── Entity ── */
 
 export type EntityType = 'person' | 'agent' | 'group' | 'service'
+export type EntityChildrenMode = 'inline' | 'drilldown'
+
+export interface EntityChildrenSection {
+  id: string
+  title: string
+  description?: string
+  childIds: string[]
+}
 
 export interface Entity {
   id: string
@@ -21,6 +29,12 @@ export interface Entity {
   lastActiveAt: number
   /** Sub-entities (e.g. topics under a group) */
   children?: Entity[]
+  /** Whether children stay inline or take over the entity panel */
+  childrenMode?: EntityChildrenMode
+  /** Custom grouped content for drill-down entity panels */
+  childrenSections?: EntityChildrenSection[]
+  /** Summary shown in the drill-down overview */
+  drilldownDescription?: string
   /** Platform/protocol source */
   source?: string
 }

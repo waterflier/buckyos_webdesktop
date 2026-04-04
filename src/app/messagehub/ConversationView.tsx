@@ -5,6 +5,7 @@ import {
   GripHorizontal,
   Menu,
   MoreVertical,
+  SlidersHorizontal,
   User,
   Users,
 } from 'lucide-react'
@@ -394,6 +395,8 @@ function EntityTypeIcon({ type }: { type: string }) {
       return <Bot size={16} />
     case 'group':
       return <Users size={16} />
+    case 'service':
+      return <SlidersHorizontal size={16} />
     default:
       return <User size={16} />
   }

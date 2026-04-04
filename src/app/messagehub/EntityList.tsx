@@ -1,15 +1,23 @@
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import {
+  ArrowLeft,
+  BellOff,
+  Bot,
+  ChevronDown,
+  ChevronRight,
+  Pin,
   Search,
   SlidersHorizontal,
-  Pin,
-  Bot,
-  Users,
   User,
-  BellOff,
+  Users,
 } from 'lucide-react'
 import { useI18n } from '../../i18n/provider'
-import type { Entity, EntityFilter } from './types'
+import type {
+  Entity,
+  EntityChildrenSection,
+  EntityFilter,
+  EntityType,
+} from './types'
 
 interface EntityListProps {
   entities: Entity[]
@@ -17,6 +25,8 @@ interface EntityListProps {
   filter: EntityFilter
   searchQuery: string
   headerActions?: ReactNode
+  enableDrilldownNavigation?: boolean
+  useCompactInlineChildren?: boolean
   onSelectEntity: (id: string) => void
   onFilterChange: (filter: EntityFilter) => void
   onSearchChange: (query: string) => void
@@ -50,44 +60,33 @@ function entityMatchesSearch(entity: Entity, query: string): boolean {
   )
 }
 
-function EntityAvatar({ entity }: { entity: Entity }) {
-  const colors: Record<string, string> = {
-    person: 'var(--cp-accent)',
-    agent: 'var(--cp-success)',
-    group: 'var(--cp-warning)',
-    service: 'var(--cp-danger)',
-  }
-  const icons: Record<string, React.ReactNode> = {
-    person: <User size={20} />,
-    agent: <Bot size={20} />,
-    group: <Users size={20} />,
-    service: <SlidersHorizontal size={20} />,
+function findEntityInTree(entities: Entity[], id: string): Entity | null {
+  const queue = [...entities]
+
+  while (queue.length > 0) {
+    const current = queue.shift()
+    if (!current) {
+      continue
+    }
+
+    if (current.id === id) {
+      return current
+    }
+
+    if (current.children?.length) {
+      queue.push(...current.children)
+    }
   }
 
-  return (
-    <div
-      className="relative flex-shrink-0 flex items-center justify-center rounded-full"
-      style={{
-        width: 48,
-        height: 48,
-        background: `color-mix(in srgb, ${colors[entity.type]} 18%, transparent)`,
-        color: colors[entity.type],
-      }}
-    >
-      {icons[entity.type]}
-      {entity.isOnline && (
-        <span
-          className="absolute bottom-0 right-0 rounded-full border-2"
-          style={{
-            width: 12,
-            height: 12,
-            background: 'var(--cp-success)',
-            borderColor: 'var(--cp-surface)',
-          }}
-        />
-      )}
-    </div>
-  )
+  return null
+}
+
+function hasInlineChildren(entity: Entity): boolean {
+  return Boolean(entity.children?.length) && entity.childrenMode !== 'drilldown'
+}
+
+function hasDrilldownChildren(entity: Entity): boolean {
+  return Boolean(entity.children?.length) && entity.childrenMode === 'drilldown'
 }
 
 function formatTime(ts: number): string {
@@ -103,7 +102,215 @@ function formatTime(ts: number): string {
   return new Date(ts).toLocaleDateString()
 }
 
-function EntityItem({
+function getEntityTypeLabel(type: EntityType, t: (key: string, fallback: string) => string) {
+  switch (type) {
+    case 'agent':
+      return t('messagehub.entityType.agent', 'Agent')
+    case 'group':
+      return t('messagehub.entityType.group', 'Group')
+    case 'service':
+      return t('messagehub.entityType.service', 'Service')
+    default:
+      return t('messagehub.entityType.person', 'Person')
+  }
+}
+
+function getChildrenSections(entity: Entity): Array<EntityChildrenSection & { items: Entity[] }> {
+  const children = entity.children ?? []
+  if (children.length === 0) {
+    return []
+  }
+
+  const childMap = new Map(children.map((child) => [child.id, child]))
+  const configuredSections = (entity.childrenSections ?? []).map((section) => ({
+    ...section,
+    items: section.childIds
+      .map((childId) => childMap.get(childId))
+      .filter((child): child is Entity => Boolean(child)),
+  }))
+
+  const claimedIds = new Set(
+    configuredSections.flatMap((section) => section.items.map((child) => child.id)),
+  )
+  const remainingChildren = children.filter((child) => !claimedIds.has(child.id))
+
+  if (configuredSections.length === 0) {
+    return [
+      {
+        id: `${entity.id}-children`,
+        title: 'Items',
+        childIds: children.map((child) => child.id),
+        items: children,
+      },
+    ]
+  }
+
+  if (remainingChildren.length === 0) {
+    return configuredSections
+  }
+
+  return [
+    ...configuredSections,
+    {
+      id: `${entity.id}-more`,
+      title: 'More',
+      childIds: remainingChildren.map((child) => child.id),
+      items: remainingChildren,
+    },
+  ]
+}
+
+function countUnread(entities: Entity[]): number {
+  return entities.reduce((total, entity) => total + entity.unreadCount, 0)
+}
+
+function EntityAvatar({
+  entity,
+  size = 48,
+}: {
+  entity: Entity
+  size?: number
+}) {
+  const colors: Record<EntityType, string> = {
+    person: 'var(--cp-accent)',
+    agent: 'var(--cp-success)',
+    group: 'var(--cp-warning)',
+    service: 'var(--cp-danger)',
+  }
+  const iconSize = size >= 46 ? 20 : size >= 38 ? 17 : 15
+  const icons: Record<EntityType, React.ReactNode> = {
+    person: <User size={iconSize} />,
+    agent: <Bot size={iconSize} />,
+    group: <Users size={iconSize} />,
+    service: <SlidersHorizontal size={iconSize} />,
+  }
+
+  return (
+    <div
+      className="relative flex-shrink-0 flex items-center justify-center rounded-full"
+      style={{
+        width: size,
+        height: size,
+        background: `color-mix(in srgb, ${colors[entity.type]} 18%, transparent)`,
+        color: colors[entity.type],
+      }}
+    >
+      {icons[entity.type]}
+      {entity.isOnline ? (
+        <span
+          className="absolute bottom-0 right-0 rounded-full border-2"
+          style={{
+            width: Math.max(10, Math.round(size * 0.24)),
+            height: Math.max(10, Math.round(size * 0.24)),
+            background: 'var(--cp-success)',
+            borderColor: 'var(--cp-surface)',
+          }}
+        />
+      ) : null}
+    </div>
+  )
+}
+
+function TopLevelEntityItem({
+  entity,
+  isExpanded,
+  isSelected,
+  onSelect,
+}: {
+  entity: Entity
+  isExpanded: boolean
+  isSelected: boolean
+  onSelect: () => void
+}) {
+  const childAffordance = hasDrilldownChildren(entity)
+    ? <ChevronRight size={15} />
+    : hasInlineChildren(entity)
+      ? (isExpanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />)
+      : null
+
+  return (
+    <button
+      onClick={onSelect}
+      className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors"
+      style={{
+        borderRadius: 14,
+        background: isSelected
+          ? 'color-mix(in srgb, var(--cp-accent) 14%, transparent)'
+          : 'transparent',
+      }}
+      type="button"
+    >
+      <EntityAvatar entity={entity} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span
+              className="truncate text-sm font-semibold"
+              style={{ color: 'var(--cp-text)' }}
+            >
+              {entity.name}
+            </span>
+            {entity.isPinned ? (
+              <Pin size={12} style={{ color: 'var(--cp-muted)' }} />
+            ) : null}
+            {entity.isMuted ? (
+              <BellOff size={12} style={{ color: 'var(--cp-muted)' }} />
+            ) : null}
+          </div>
+          <div className="flex flex-shrink-0 items-center gap-1.5">
+            {entity.lastMessage ? (
+              <span
+                className="text-xs"
+                style={{ color: 'var(--cp-muted)' }}
+              >
+                {formatTime(entity.lastMessage.timestamp)}
+              </span>
+            ) : null}
+            {childAffordance ? (
+              <span
+                className="flex h-6 w-6 items-center justify-center rounded-full"
+                style={{
+                  color: 'var(--cp-muted)',
+                  background: 'color-mix(in srgb, var(--cp-text) 6%, transparent)',
+                }}
+              >
+                {childAffordance}
+              </span>
+            ) : null}
+          </div>
+        </div>
+        {entity.lastMessage ? (
+          <div className="mt-0.5 flex items-center justify-between gap-2">
+            <p
+              className="truncate text-xs"
+              style={{ color: 'var(--cp-muted)' }}
+            >
+              {entity.lastMessage.senderName && entity.type !== 'person'
+                ? `${entity.lastMessage.senderName}: `
+                : ''}
+              {entity.lastMessage.text}
+            </p>
+            {entity.unreadCount > 0 ? (
+              <span
+                className="flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold"
+                style={{
+                  background: entity.isMuted
+                    ? 'color-mix(in srgb, var(--cp-muted) 30%, transparent)'
+                    : 'var(--cp-accent)',
+                  color: entity.isMuted ? 'var(--cp-muted)' : '#fff',
+                }}
+              >
+                {entity.unreadCount}
+              </span>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </button>
+  )
+}
+
+function InlineChildItem({
   entity,
   isSelected,
   onSelect,
@@ -115,71 +322,264 @@ function EntityItem({
   return (
     <button
       onClick={onSelect}
-      className="flex items-center gap-3 w-full text-left px-3 py-2.5 transition-colors"
+      className="flex w-full items-center gap-2.5 px-2.5 py-1.5 text-left transition-colors"
       style={{
-        borderRadius: 12,
+        borderRadius: 11,
         background: isSelected
-          ? 'color-mix(in srgb, var(--cp-accent) 14%, transparent)'
+          ? 'color-mix(in srgb, var(--cp-accent) 11%, transparent)'
           : 'transparent',
       }}
+      type="button"
     >
-      <EntityAvatar entity={entity} />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span
-              className="font-semibold text-sm truncate"
-              style={{ color: 'var(--cp-text)' }}
-            >
-              {entity.name}
-            </span>
-            {entity.isPinned && (
-              <Pin size={12} style={{ color: 'var(--cp-muted)' }} />
-            )}
-            {entity.isMuted && (
-              <BellOff size={12} style={{ color: 'var(--cp-muted)' }} />
-            )}
-          </div>
-          {entity.lastMessage && (
-            <span
-              className="text-xs flex-shrink-0"
-              style={{ color: 'var(--cp-muted)' }}
-            >
-              {formatTime(entity.lastMessage.timestamp)}
-            </span>
-          )}
+      <EntityAvatar entity={entity} size={30} />
+      <span
+        className="min-w-0 flex-1 truncate text-[13px] font-medium"
+        style={{ color: 'var(--cp-text)' }}
+      >
+        {entity.name}
+      </span>
+      {entity.unreadCount > 0 ? (
+        <span
+          className="flex h-4.5 min-w-4.5 flex-shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-semibold"
+          style={{
+            background: 'color-mix(in srgb, var(--cp-accent) 16%, transparent)',
+            color: 'var(--cp-accent)',
+          }}
+        >
+          {entity.unreadCount}
+        </span>
+      ) : null}
+    </button>
+  )
+}
+
+function StatPill({
+  label,
+  value,
+}: {
+  label: string
+  value: string
+}) {
+  return (
+    <div
+      className="rounded-full px-3 py-1.5"
+      style={{
+        background: 'color-mix(in srgb, var(--cp-surface) 76%, var(--cp-accent) 8%)',
+        border: '1px solid color-mix(in srgb, var(--cp-border) 88%, var(--cp-accent) 12%)',
+      }}
+    >
+      <span
+        className="text-[10px] font-semibold uppercase tracking-[0.14em]"
+        style={{ color: 'var(--cp-muted)' }}
+      >
+        {label}
+      </span>
+      <span
+        className="ml-2 text-sm font-semibold"
+        style={{ color: 'var(--cp-text)' }}
+      >
+        {value}
+      </span>
+    </div>
+  )
+}
+
+function DrilldownEntityRow({
+  entity,
+  isSelected,
+  onSelect,
+  typeLabel,
+}: {
+  entity: Entity
+  isSelected: boolean
+  onSelect: () => void
+  typeLabel: string
+}) {
+  const metaText = entity.lastMessage
+    ? formatTime(entity.lastMessage.timestamp)
+    : entity.statusText
+
+  return (
+    <button
+      onClick={onSelect}
+      className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors"
+      style={{
+        borderRadius: 14,
+        background: isSelected
+          ? 'color-mix(in srgb, var(--cp-accent) 12%, transparent)'
+          : 'transparent',
+      }}
+      type="button"
+    >
+      <EntityAvatar entity={entity} size={34} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span
+            className="truncate text-sm font-semibold"
+            style={{ color: 'var(--cp-text)' }}
+          >
+            {entity.name}
+          </span>
+          <span
+            className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+            style={{
+              background: 'color-mix(in srgb, var(--cp-text) 6%, transparent)',
+              color: 'var(--cp-muted)',
+            }}
+          >
+            {typeLabel}
+          </span>
         </div>
-        {entity.lastMessage && (
-          <div className="flex items-center justify-between gap-2 mt-0.5">
-            <p
-              className="text-xs truncate"
-              style={{ color: 'var(--cp-muted)' }}
-            >
-              {entity.lastMessage.senderName && entity.type !== 'person'
-                ? `${entity.lastMessage.senderName}: `
-                : ''}
-              {entity.lastMessage.text}
-            </p>
-            {entity.unreadCount > 0 && (
-              <span
-                className="flex-shrink-0 flex items-center justify-center rounded-full text-xs font-semibold"
-                style={{
-                  minWidth: 20,
-                  height: 20,
-                  padding: '0 6px',
-                  background: entity.isMuted
-                    ? 'color-mix(in srgb, var(--cp-muted) 30%, transparent)'
-                    : 'var(--cp-accent)',
-                  color: entity.isMuted ? 'var(--cp-muted)' : '#fff',
-                }}
-              >
-                {entity.unreadCount}
-              </span>
-            )}
-          </div>
-        )}
+      </div>
+      <div className="flex flex-shrink-0 items-center gap-2">
+        {metaText ? (
+          <span
+            className="text-[11px]"
+            style={{ color: 'var(--cp-muted)' }}
+          >
+            {metaText}
+          </span>
+        ) : null}
+        {entity.unreadCount > 0 ? (
+          <span
+            className="flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-semibold"
+            style={{
+              background: 'color-mix(in srgb, var(--cp-accent) 16%, transparent)',
+              color: 'var(--cp-accent)',
+            }}
+          >
+            {entity.unreadCount}
+          </span>
+        ) : null}
+        <ChevronRight size={15} style={{ color: 'var(--cp-muted)' }} />
       </div>
     </button>
+  )
+}
+
+function DrilldownPanel({
+  entity,
+  selectedEntityId,
+  onSelectEntity,
+}: {
+  entity: Entity
+  selectedEntityId: string | null
+  onSelectEntity: (id: string) => void
+}) {
+  const { t } = useI18n()
+  const sections = getChildrenSections(entity)
+  const children = entity.children ?? []
+  const unreadTotal = countUnread(children)
+
+  return (
+    <div className="flex-1 overflow-y-auto px-3 pb-3 shell-scrollbar">
+      <section
+        className="mx-1 rounded-[24px] px-4 py-4"
+        style={{
+          background:
+            'linear-gradient(180deg, color-mix(in srgb, var(--cp-accent) 8%, var(--cp-surface) 92%), color-mix(in srgb, var(--cp-surface-2) 92%, transparent))',
+          border: '1px solid color-mix(in srgb, var(--cp-border) 86%, var(--cp-accent) 14%)',
+        }}
+      >
+        <div className="flex items-start gap-3">
+          <EntityAvatar entity={entity} size={42} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <h2
+                className="truncate text-base font-semibold"
+                style={{ color: 'var(--cp-text)' }}
+              >
+                {entity.name}
+              </h2>
+              {entity.statusText ? (
+                <span
+                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]"
+                  style={{
+                    background: 'color-mix(in srgb, var(--cp-text) 6%, transparent)',
+                    color: 'var(--cp-muted)',
+                  }}
+                >
+                  {entity.statusText}
+                </span>
+              ) : null}
+            </div>
+            <p
+              className="mt-1 text-sm leading-6"
+              style={{ color: 'var(--cp-muted)' }}
+            >
+              {entity.drilldownDescription
+                ?? entity.lastMessage?.text
+                ?? entity.statusText}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          <StatPill
+            label={t('messagehub.drilldownItems', 'Items')}
+            value={`${children.length}`}
+          />
+          <StatPill
+            label={t('messagehub.drilldownSections', 'Sections')}
+            value={`${sections.length}`}
+          />
+          {unreadTotal > 0 ? (
+            <StatPill
+              label={t('messagehub.filter.unread', 'Unread')}
+              value={`${unreadTotal}`}
+            />
+          ) : null}
+        </div>
+      </section>
+
+      <div className="mt-4 space-y-4">
+        {sections.map((section) => (
+          <section key={section.id} className="mx-1">
+            <div className="mb-2 px-1">
+              <div className="flex items-end justify-between gap-3">
+                <h3
+                  className="text-xs font-semibold uppercase tracking-[0.14em]"
+                  style={{ color: 'var(--cp-muted)' }}
+                >
+                  {section.title}
+                </h3>
+                <span
+                  className="text-[11px]"
+                  style={{ color: 'var(--cp-muted)' }}
+                >
+                  {section.items.length}
+                </span>
+              </div>
+              {section.description ? (
+                <p
+                  className="mt-1 text-xs leading-5"
+                  style={{ color: 'var(--cp-muted)' }}
+                >
+                  {section.description}
+                </p>
+              ) : null}
+            </div>
+            <div
+              className="rounded-[20px] p-1.5"
+              style={{
+                background: 'color-mix(in srgb, var(--cp-text) 4%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--cp-border) 92%, transparent)',
+              }}
+            >
+              {section.items.map((child) => (
+                <DrilldownEntityRow
+                  key={child.id}
+                  entity={child}
+                  isSelected={selectedEntityId === child.id}
+                  onSelect={() => onSelectEntity(child.id)}
+                  typeLabel={getEntityTypeLabel(child.type, t)}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    </div>
   )
 }
 
@@ -189,36 +589,66 @@ export function EntityList({
   filter,
   searchQuery,
   headerActions,
+  enableDrilldownNavigation = true,
+  useCompactInlineChildren = true,
   onSelectEntity,
   onFilterChange,
   onSearchChange,
 }: EntityListProps) {
   const { t } = useI18n()
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
+  const [drilldownPath, setDrilldownPath] = useState<string[]>([])
 
   const filtered = entities
-    .filter((e) => entityMatchesFilter(e, filter))
-    .filter((e) => entityMatchesSearch(e, searchQuery))
+    .filter((entity) => entityMatchesFilter(entity, filter))
+    .filter((entity) => entityMatchesSearch(entity, searchQuery))
 
-  const toggleGroup = (id: string) => {
+  const drilldownEntities = useMemo(
+    () => drilldownPath
+      .map((entityId) => findEntityInTree(entities, entityId))
+      .filter((entity): entity is Entity => Boolean(entity)),
+    [drilldownPath, entities],
+  )
+  const drilldownEntity = drilldownEntities.at(-1) ?? null
+
+  const toggleInlineGroup = (id: string) => {
     setExpandedGroups((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
       return next
     })
   }
 
+  const handleEntitySelect = (entity: Entity) => {
+    onSelectEntity(entity.id)
+
+    if (enableDrilldownNavigation && hasDrilldownChildren(entity)) {
+      setDrilldownPath((prev) => (
+        prev.at(-1) === entity.id ? prev : [...prev, entity.id]
+      ))
+      return
+    }
+
+    if (hasInlineChildren(entity) || hasDrilldownChildren(entity)) {
+      toggleInlineGroup(entity.id)
+    }
+  }
+
+  const breadcrumbLabel = drilldownEntities.map((entity) => entity.name).join(' / ')
+
   return (
     <div
-      className="flex flex-col h-full"
+      className="flex h-full flex-col"
       style={{ background: 'var(--cp-surface)' }}
     >
-      {/* Header */}
       <div className="px-4 pt-4 pb-2">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h1
-            className="text-lg font-bold min-w-0"
+            className="min-w-0 text-lg font-bold"
             style={{ color: 'var(--cp-text)' }}
           >
             {t('messagehub.title', 'MessageHub')}
@@ -230,80 +660,129 @@ export function EntityList({
           ) : null}
         </div>
 
-        {/* Search */}
-        <div
-          className="flex items-center gap-2 px-3 py-2 rounded-xl"
-          style={{
-            background: 'color-mix(in srgb, var(--cp-text) 6%, transparent)',
-          }}
-        >
-          <Search size={16} style={{ color: 'var(--cp-muted)' }} />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder={t('messagehub.search', 'Search...')}
-            className="flex-1 bg-transparent border-none outline-none text-sm"
-            style={{ color: 'var(--cp-text)' }}
-          />
-        </div>
-      </div>
-
-      {/* Filters */}
-      <div className="flex items-center gap-1.5 px-4 py-2 overflow-x-auto">
-        {filters.map((f) => (
-          <button
-            key={f.key}
-            onClick={() => onFilterChange(f.key)}
-            className="px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors"
-            style={{
-              background:
-                filter === f.key
-                  ? 'var(--cp-accent)'
-                  : 'color-mix(in srgb, var(--cp-text) 8%, transparent)',
-              color: filter === f.key ? '#fff' : 'var(--cp-muted)',
-            }}
-          >
-            {t(f.labelKey, f.key)}
-          </button>
-        ))}
-      </div>
-
-      {/* Entity List */}
-      <div className="flex-1 overflow-y-auto px-2 pb-2 shell-scrollbar">
-        {filtered.length === 0 ? (
-          <div className="flex items-center justify-center h-32">
-            <p className="text-sm" style={{ color: 'var(--cp-muted)' }}>
-              {t('messagehub.noResults', 'No conversations found')}
-            </p>
+        {enableDrilldownNavigation && drilldownEntity ? (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setDrilldownPath((prev) => prev.slice(0, -1))}
+              className="flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-medium"
+              style={{
+                color: 'var(--cp-accent)',
+                background: 'color-mix(in srgb, var(--cp-accent) 12%, transparent)',
+              }}
+            >
+              <ArrowLeft size={14} />
+              {t('messagehub.backToEntities', 'Back to entities')}
+            </button>
+            <span
+              className="min-w-0 truncate text-xs"
+              style={{ color: 'var(--cp-muted)' }}
+            >
+              {breadcrumbLabel}
+            </span>
           </div>
         ) : (
-          filtered.map((entity) => (
-            <div key={entity.id}>
-              <EntityItem
-                entity={entity}
-                isSelected={selectedEntityId === entity.id}
-                onSelect={() => {
-                  onSelectEntity(entity.id)
-                  if (entity.children?.length) toggleGroup(entity.id)
-                }}
-              />
-              {/* Sub-entities (inline expand) */}
-              {entity.children &&
-                expandedGroups.has(entity.id) &&
-                entity.children.map((child) => (
-                  <div key={child.id} className="pl-6">
-                    <EntityItem
-                      entity={child}
-                      isSelected={selectedEntityId === child.id}
-                      onSelect={() => onSelectEntity(child.id)}
-                    />
-                  </div>
-                ))}
-            </div>
-          ))
+          <div
+            className="flex items-center gap-2 rounded-xl px-3 py-2"
+            style={{
+              background: 'color-mix(in srgb, var(--cp-text) 6%, transparent)',
+            }}
+          >
+            <Search size={16} style={{ color: 'var(--cp-muted)' }} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(event) => onSearchChange(event.target.value)}
+              placeholder={t('messagehub.search', 'Search...')}
+              className="flex-1 border-none bg-transparent text-sm outline-none"
+              style={{ color: 'var(--cp-text)' }}
+            />
+          </div>
         )}
       </div>
+
+      {enableDrilldownNavigation && drilldownEntity ? (
+        <DrilldownPanel
+          entity={drilldownEntity}
+          selectedEntityId={selectedEntityId}
+          onSelectEntity={onSelectEntity}
+        />
+      ) : (
+        <>
+          <div className="flex items-center gap-1.5 overflow-x-auto px-4 py-2">
+            {filters.map((item) => (
+              <button
+                key={item.key}
+                onClick={() => onFilterChange(item.key)}
+                className="whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium transition-colors"
+                style={{
+                  background:
+                    filter === item.key
+                      ? 'var(--cp-accent)'
+                      : 'color-mix(in srgb, var(--cp-text) 8%, transparent)',
+                  color: filter === item.key ? '#fff' : 'var(--cp-muted)',
+                }}
+                type="button"
+              >
+                {t(item.labelKey, item.key)}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-2 pb-2 shell-scrollbar">
+            {filtered.length === 0 ? (
+              <div className="flex h-32 items-center justify-center">
+                <p className="text-sm" style={{ color: 'var(--cp-muted)' }}>
+                  {t('messagehub.noResults', 'No conversations found')}
+                </p>
+              </div>
+            ) : (
+              filtered.map((entity) => {
+                const isExpanded = expandedGroups.has(entity.id)
+
+                return (
+                  <div key={entity.id} className="mb-1">
+                    <TopLevelEntityItem
+                      entity={entity}
+                      isExpanded={isExpanded}
+                      isSelected={selectedEntityId === entity.id}
+                      onSelect={() => handleEntitySelect(entity)}
+                    />
+
+                    {hasInlineChildren(entity) && isExpanded ? (
+                      <div
+                        className="ml-9 mt-1 border-l pl-3"
+                        style={{
+                          borderColor: 'color-mix(in srgb, var(--cp-border) 90%, transparent)',
+                        }}
+                      >
+                        {entity.children?.map((child) => (
+                          useCompactInlineChildren ? (
+                            <InlineChildItem
+                              key={child.id}
+                              entity={child}
+                              isSelected={selectedEntityId === child.id}
+                              onSelect={() => onSelectEntity(child.id)}
+                            />
+                          ) : (
+                            <TopLevelEntityItem
+                              key={child.id}
+                              entity={child}
+                              isExpanded={false}
+                              isSelected={selectedEntityId === child.id}
+                              onSelect={() => onSelectEntity(child.id)}
+                            />
+                          )
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                )
+              })
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }
