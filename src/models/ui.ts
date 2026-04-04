@@ -107,6 +107,8 @@ export interface WindowManifest {
   contentPadding?: 'default' | 'none'
   mobileRedirectPath?: string
   desktopWindow?: DesktopWindowSizing
+  supportedFormFactors?: FormFactor[]
+  showInLauncher?: boolean
 }
 
 export interface AppDefinition {
@@ -117,6 +119,17 @@ export interface AppDefinition {
   accent: string
   tier: IntegrationTier
   manifest: WindowManifest
+}
+
+export function supportsFormFactor(
+  app: AppDefinition,
+  formFactor: FormFactor,
+) {
+  return app.manifest.supportedFormFactors?.includes(formFactor) ?? true
+}
+
+export function isLauncherApp(app: AppDefinition) {
+  return app.manifest.showInLauncher ?? true
 }
 
 export interface DesktopPayload {

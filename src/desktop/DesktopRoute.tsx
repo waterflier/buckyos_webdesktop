@@ -62,6 +62,7 @@ import { defaultDeadZone } from '../mock/data'
 import { fetchDesktopPayload } from '../mock/provider'
 import {
   defaultWindowAppearancePreferences,
+  isLauncherApp,
   supportedLocales,
   windowAppearancePreferencesSchema,
 } from '../models/ui'
@@ -313,7 +314,7 @@ function migrateDeadZone(layout: LayoutState, formFactor: FormFactor) {
   }
 }
 
-const systemSidebarSystemAppIds = new Set(['settings', 'diagnostics'])
+const systemSidebarSystemAppIds = new Set(['settings', 'ai-center', 'diagnostics'])
 
 function createSystemSidebarDataModel(
   apps: DesktopAppItem[],
@@ -363,7 +364,7 @@ function createSystemSidebarDataModel(
     })
     .filter((app): app is SystemSidebarDataModel['switchApps'][number] => Boolean(app))
 
-  const systemApps = ['settings', 'diagnostics']
+  const systemApps = ['settings', 'ai-center', 'diagnostics']
     .map((appId) => toSidebarApp(appMap.get(appId)))
     .filter((app): app is SystemSidebarAppItem => Boolean(app))
 
@@ -538,6 +539,27 @@ function updatePageFromGrid(
   return normalizePageItems(nextPage, formFactor, prioritizedItemId)
 }
 
+function sanitizeLayoutForApps(
+  layout: LayoutState,
+  apps: DesktopAppItem[],
+) {
+  const launcherAppIds = new Set(
+    apps
+      .filter((app) => isLauncherApp(app))
+      .map((app) => app.id),
+  )
+
+  return {
+    ...layout,
+    pages: layout.pages.map((page) => ({
+      ...page,
+      items: page.items.filter(
+        (item) => item.type === 'widget' || launcherAppIds.has(item.appId),
+      ),
+    })),
+  }
+}
+
 export function DesktopRoute() {
   const { resetBackground, setBackground } = useDesktopBackground()
   const { locale, setLocale, t } = useI18n()
@@ -596,14 +618,17 @@ export function DesktopRoute() {
       }),
   )
 
-  const apps = useMemo(() => resolveDesktopApps(data?.apps ?? []), [data?.apps])
+  const apps = useMemo(
+    () => resolveDesktopApps(data?.apps ?? [], formFactor),
+    [data?.apps, formFactor],
+  )
   const connectionState = useConnectionState(runtimeContainer)
   const currentSpec = gridSpec[formFactor]
   const resetViewportState = () => {
     setWindows([])
   }
   const applyResolvedLayout = (nextLayout: LayoutState) => {
-    setLayoutState(nextLayout)
+    setLayoutState(sanitizeLayoutForApps(nextLayout, apps))
   }
 
   useEffect(() => {

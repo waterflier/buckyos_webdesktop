@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Button, TextField } from '@mui/material'
 import { useEffect, useState } from 'react'
-import { Controller, useForm } from 'react-hook-form'
+import { Controller, useForm, type Resolver } from 'react-hook-form'
 import { MetricCard, PanelIntro } from '../../components/AppPanelPrimitives'
 import { useI18n } from '../../i18n/provider'
 import { localeLabels } from '../../mock/data'
@@ -26,13 +26,12 @@ export function SettingsAppPanel({
     titleBarOpacity: true,
     backgroundOpacity: true,
   })
-  const form = useForm<
-    Pick<
-      SystemPreferencesInput,
-      'locale' | 'theme' | 'titleBarOpacity' | 'backgroundOpacity'
-    >
-  >({
-    resolver: zodResolver(appearanceSchema),
+  type AppearanceFormValues = Pick<
+    SystemPreferencesInput,
+    'locale' | 'theme' | 'titleBarOpacity' | 'backgroundOpacity'
+  >
+  const form = useForm<AppearanceFormValues>({
+    resolver: zodResolver(appearanceSchema) as Resolver<AppearanceFormValues>,
     defaultValues: {
       locale,
       theme: themeMode,

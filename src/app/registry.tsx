@@ -1,3 +1,4 @@
+import { AICenterAppPanel } from './ai-center/AICenterAppPanel'
 import { CodeAssistantAppPanel } from './codeassistant/CodeAssistantAppPanel'
 import { DemosAppPanel } from './demos/DemosAppPanel'
 import { DiagnosticsAppPanel } from './diagnostics/DiagnosticsAppPanel'
@@ -7,10 +8,15 @@ import { MessageHubAppPanel } from './messagehub/MessageHubAppPanel'
 import { SettingsAppPanel } from './settings/SettingsAppPanel'
 import { StudioAppPanel } from './studio/StudioAppPanel'
 import { UnsupportedAppPanel } from './unsupported/UnsupportedAppPanel'
-import type { AppDefinition } from '../models/ui'
+import {
+  supportsFormFactor,
+  type AppDefinition,
+  type FormFactor,
+} from '../models/ui'
 import type { AppContentLoaderProps, DesktopAppItem } from './types'
 
 const appLoaders = {
+  'ai-center': AICenterAppPanel,
   settings: SettingsAppPanel,
   files: FilesAppPanel,
   studio: StudioAppPanel,
@@ -21,11 +27,16 @@ const appLoaders = {
   messagehub: MessageHubAppPanel,
 } as const
 
-export function resolveDesktopApps(apps: AppDefinition[]): DesktopAppItem[] {
-  return apps.map((app) => ({
-    ...app,
-    loader: appLoaders[app.id as keyof typeof appLoaders],
-  }))
+export function resolveDesktopApps(
+  apps: AppDefinition[],
+  formFactor: FormFactor,
+): DesktopAppItem[] {
+  return apps
+    .filter((app) => supportsFormFactor(app, formFactor))
+    .map((app) => ({
+      ...app,
+      loader: appLoaders[app.id as keyof typeof appLoaders],
+    }))
 }
 
 export function findDesktopAppById(

@@ -8,6 +8,10 @@ import type {
   LayoutState,
   MockScenario,
 } from '../models/ui'
+import {
+  isLauncherApp,
+  supportsFormFactor,
+} from '../models/ui'
 
 export const defaultDeadZone: DeadZone = {
   top: 0,
@@ -21,6 +25,34 @@ const defaultWallpaper: DesktopWallpaper = {
 }
 
 const appCatalog: AppDefinition[] = [
+  {
+    id: 'ai-center',
+    iconKey: 'ai-center',
+    labelKey: 'apps.aiCenter',
+    summaryKey: 'appSummary.aiCenter',
+    accent: 'var(--cp-accent)',
+    tier: 'system',
+    manifest: {
+      defaultMode: 'windowed',
+      allowMinimize: true,
+      allowMaximize: true,
+      allowClose: true,
+      allowFullscreen: false,
+      mobileFullscreenBehavior: 'cover_dead_zone',
+      mobileStatusBarMode: 'compact',
+      titleBarMode: 'system',
+      placement: 'inplace',
+      contentPadding: 'none',
+      supportedFormFactors: ['desktop'],
+      showInLauncher: false,
+      desktopWindow: {
+        width: 1024,
+        height: 680,
+        minWidth: 720,
+        minHeight: 480,
+      },
+    },
+  },
   {
     id: 'settings',
     iconKey: 'settings',
@@ -480,10 +512,31 @@ function createLayout(formFactor: FormFactor, items: LayoutItem[][]): LayoutStat
   }
 }
 
+function availableAppsForFormFactor(formFactor: FormFactor) {
+  return appCatalog.filter((app) => supportsFormFactor(app, formFactor))
+}
+
+function filterLauncherItems(
+  items: LayoutItem[][],
+  apps: AppDefinition[],
+) {
+  const launcherAppIds = new Set(
+    apps
+      .filter((app) => isLauncherApp(app))
+      .map((app) => app.id),
+  )
+
+  return items.map((pageItems) =>
+    pageItems.filter((item) => item.type === 'widget' || launcherAppIds.has(item.appId)),
+  )
+}
+
 export function buildDesktopPayload(
   formFactor: FormFactor,
   scenario: MockScenario,
 ): DesktopPayload {
+  const availableApps = availableAppsForFormFactor(formFactor)
+
   if (scenario === 'empty') {
     return {
       overview: {
@@ -491,7 +544,7 @@ export function buildDesktopPayload(
         subtitleKey: 'shell.subtitle',
       },
       wallpaper: defaultWallpaper,
-      apps: appCatalog,
+      apps: availableApps,
       layout: {
         version: 1,
         formFactor,
@@ -507,10 +560,13 @@ export function buildDesktopPayload(
       subtitleKey: 'shell.subtitle',
     },
     wallpaper: defaultWallpaper,
-    apps: appCatalog,
+    apps: availableApps,
     layout: createLayout(
       formFactor,
-      formFactor === 'desktop' ? desktopItems : mobileItems,
+      filterLauncherItems(
+        formFactor === 'desktop' ? desktopItems : mobileItems,
+        availableApps,
+      ),
     ),
   }
 }
