@@ -1527,7 +1527,7 @@ export function DesktopRoute() {
                 trayState={trayState}
               />
               <div
-                className="relative"
+                className="relative overflow-hidden"
                 style={{
                   minWidth: isMobile ? undefined : desktopMinCanvasSize.width,
                   minHeight: isMobile ? undefined : desktopMinCanvasSize.height,

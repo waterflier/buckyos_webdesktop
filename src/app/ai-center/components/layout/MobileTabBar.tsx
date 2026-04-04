@@ -30,7 +30,7 @@ export function MobileTabBar({ currentPage, onNavigate }: MobileTabBarProps) {
             key={tab.key}
             type="button"
             onClick={() => onNavigate(tab.key)}
-            className="flex items-center gap-1.5 px-4 py-2.5 text-sm whitespace-nowrap shrink-0 transition-colors"
+            className="flex flex-1 items-center justify-center gap-1.5 px-2 py-2.5 text-sm whitespace-nowrap transition-colors"
             style={{
               color: active ? 'var(--cp-accent)' : 'var(--cp-muted)',
               borderBottom: active ? '2px solid var(--cp-accent)' : '2px solid transparent',
