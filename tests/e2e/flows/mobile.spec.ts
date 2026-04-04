@@ -56,12 +56,17 @@ test('mobile viewport opens in-place app with system title bar', async ({
     pointerId: 1,
     pointerType: 'touch',
   })
-  await expect(page.getByText('System defaults')).toBeVisible()
+  await expect(
+    page.getByText('Choose the language and appearance for your desktop shell.'),
+  ).toBeVisible()
+  await expect(page.getByRole('button', { name: 'General' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'App menu' })).toBeVisible()
   const minimizeButton = page.getByRole('button', { name: 'Minimize' })
   await expect(minimizeButton).toBeVisible()
   await minimizeButton.tap()
-  await expect(page.getByText('System defaults')).toHaveCount(0)
+  await expect(
+    page.getByText('Choose the language and appearance for your desktop shell.'),
+  ).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Settings' })).toBeVisible()
 
   expect(consoleErrors).toEqual([])

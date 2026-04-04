@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useI18n } from '../../../i18n/provider'
 import { useSettingsSnapshot, useSettingsStore } from '../hooks/use-settings-store'
 import { Section, InfoRow } from '../components/shared/Section'
+import { SettingsPageIntro } from '../components/shared/SettingsPageIntro'
 
 export function GeneralPage() {
   const { t } = useI18n()
@@ -20,16 +21,15 @@ export function GeneralPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold" style={{ color: 'var(--cp-text)' }}>
-          {t('settings.general.title', 'General')}
-        </h2>
-        <p className="mt-1 text-sm" style={{ color: 'var(--cp-muted)' }}>
-          {t('settings.general.description', 'System information, device details, and support tools.')}
-        </p>
-      </div>
+      <SettingsPageIntro
+        page="general"
+        title={t('settings.general.title', 'General')}
+        description={t(
+          'settings.general.description',
+          'System information, device details, and support tools.',
+        )}
+      />
 
-      {/* Software Info */}
       <Section title={t('settings.general.softwareInfo', 'Software Info')}>
         <div className="space-y-0.5">
           <InfoRow label={t('settings.general.version', 'BuckyOS Version')} value={software.version} />

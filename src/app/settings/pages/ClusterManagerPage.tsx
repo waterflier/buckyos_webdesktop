@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useI18n } from '../../../i18n/provider'
 import { useSettingsSnapshot, useSettingsStore } from '../hooks/use-settings-store'
 import { Section, CollapsibleSection, InfoRow, StatusBadge } from '../components/shared/Section'
+import { SettingsPageIntro } from '../components/shared/SettingsPageIntro'
 
 export function ClusterManagerPage() {
   const { t } = useI18n()
@@ -20,16 +21,15 @@ export function ClusterManagerPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold" style={{ color: 'var(--cp-text)' }}>
-          {t('settings.cluster.title', 'Cluster Manager')}
-        </h2>
-        <p className="mt-1 text-sm" style={{ color: 'var(--cp-muted)' }}>
-          {t('settings.cluster.description', 'View your cluster, network identity, connectivity, and certificate status.')}
-        </p>
-      </div>
+      <SettingsPageIntro
+        page="cluster"
+        title={t('settings.cluster.title', 'Cluster Manager')}
+        description={t(
+          'settings.cluster.description',
+          'View your cluster, network identity, connectivity, and certificate status.',
+        )}
+      />
 
-      {/* Cluster Overview */}
       <Section title={t('settings.cluster.overview', 'Cluster Overview')}>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[

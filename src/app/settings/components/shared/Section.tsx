@@ -11,11 +11,14 @@ interface SectionProps {
 export function Section({ title, description, children }: SectionProps) {
   return (
     <section className="shell-subtle-panel p-4 sm:p-5">
-      <h3 className="text-sm font-semibold" style={{ color: 'var(--cp-text)' }}>
+      <h3
+        className="font-display text-base font-semibold"
+        style={{ color: 'var(--cp-text)' }}
+      >
         {title}
       </h3>
       {description && (
-        <p className="mt-1 text-xs leading-5" style={{ color: 'var(--cp-muted)' }}>
+        <p className="mt-1 text-sm leading-6" style={{ color: 'var(--cp-muted)' }}>
           {description}
         </p>
       )}
@@ -40,11 +43,14 @@ export function CollapsibleSection({
         className="cursor-pointer select-none list-none flex items-center justify-between"
       >
         <div>
-          <h3 className="text-sm font-semibold" style={{ color: 'var(--cp-text)' }}>
+          <h3
+            className="font-display text-base font-semibold"
+            style={{ color: 'var(--cp-text)' }}
+          >
             {title}
           </h3>
           {description && (
-            <p className="mt-1 text-xs leading-5" style={{ color: 'var(--cp-muted)' }}>
+            <p className="mt-1 text-sm leading-6" style={{ color: 'var(--cp-muted)' }}>
               {description}
             </p>
           )}
@@ -70,9 +76,12 @@ interface InfoRowProps {
 
 export function InfoRow({ label, value }: InfoRowProps) {
   return (
-    <div className="flex items-center justify-between py-1.5 text-sm">
+    <div className="flex flex-col gap-1.5 py-2 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-4">
       <span style={{ color: 'var(--cp-muted)' }}>{label}</span>
-      <span className="font-medium text-right" style={{ color: 'var(--cp-text)' }}>
+      <span
+        className="w-full break-words font-medium text-left sm:w-auto sm:text-right"
+        style={{ color: 'var(--cp-text)' }}
+      >
         {value}
       </span>
     </div>

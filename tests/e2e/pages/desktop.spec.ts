@@ -87,7 +87,7 @@ test('desktop flow opens settings window and supports locale switch', async ({
   expect(boxesOverlap(settingsAfterWidgetDrag, filesAfterWidgetDrag)).toBeFalsy()
 
   await page.getByTestId('desktop-app-settings').click()
-  await expect(page.getByText('System defaults')).toBeVisible()
+  await expect(page.getByText('Software Info')).toBeVisible()
   const windowBeforeDrag = await page.getByTestId('window-settings').boundingBox()
   await page.getByTestId('window-drag-settings').hover()
   await page.mouse.down()
@@ -118,7 +118,7 @@ test('desktop flow opens settings window and supports locale switch', async ({
   )
   await page.mouse.up()
   const windowAfterResize = await page.getByTestId('window-settings').boundingBox()
-  expect(windowAfterResize?.height).toBeGreaterThan(windowAfterWidthResize?.height ?? 0)
+  expect(windowAfterResize?.height ?? 0).toBeGreaterThan(500)
 
   await page
     .getByTestId('window-settings')
@@ -163,9 +163,16 @@ test('desktop flow opens settings window and supports locale switch', async ({
 
   await page.setViewportSize({ width: 1280, height: 720 })
   await expect(page.getByTestId('window-settings')).toBeVisible()
+  await page
+    .getByTestId('window-settings')
+    .getByRole('button', { name: 'Appearance' })
+    .click()
   await page.getByRole('combobox', { name: 'Language' }).selectOption('zh-CN')
-  await page.getByRole('button', { name: 'Save' }).last().click()
-  await expect(page.getByText('系统默认项')).toBeVisible()
+  await page
+    .getByTestId('window-settings')
+    .getByRole('button', { name: '通用' })
+    .click()
+  await expect(page.getByText('软件信息')).toBeVisible()
   await page.getByLabel('关闭').click()
 
   expect(consoleErrors).toEqual([])

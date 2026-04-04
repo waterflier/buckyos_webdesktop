@@ -1,7 +1,13 @@
-import { Settings, Palette, Network, Shield, Code, ChevronRight } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
+import { MetricCard, PanelIntro } from '../../../../components/AppPanelPrimitives'
 import { useI18n } from '../../../../i18n/provider'
 import { useSettingsSnapshot } from '../../hooks/use-settings-store'
-import type { SettingsPage } from './Sidebar'
+import {
+  getSettingsPageGroup,
+  settingsPageDefinitions,
+  settingsPageGroups,
+  type SettingsPage,
+} from './navigation'
 
 interface MobileSettingsListProps {
   onNavigate: (page: SettingsPage) => void
@@ -12,121 +18,104 @@ export function MobileSettingsList({ onNavigate }: MobileSettingsListProps) {
   const snapshot = useSettingsSnapshot()
 
   const { general, session, cluster, developer } = snapshot
+  const itemValues: Partial<Record<SettingsPage, string>> = {
+    general: `v${general.software.version}`,
+    appearance: [
+      session.appearance.theme === 'dark'
+        ? t('common.dark', 'Dark')
+        : t('common.light', 'Light'),
+      session.appearance.language.toUpperCase(),
+    ].join(' · '),
+    cluster:
+      cluster.overview.clusterMode === 'single_node'
+        ? t('settings.cluster.singleNode', 'Single Node')
+        : `${cluster.overview.nodeCount} ${t('settings.cluster.nodes', 'Nodes')}`,
+    developer: developer.modeEnabled
+      ? t('settings.developer.on', 'On')
+      : t('settings.developer.off', 'Off'),
+  }
 
-  const groups: {
-    title: string
-    items: {
-      key: SettingsPage
-      icon: typeof Settings
-      label: string
-      value?: string
-    }[]
-  }[] = [
-    {
-      title: t('settings.mobile.system', 'System'),
-      items: [
-        {
-          key: 'general',
-          icon: Settings,
-          label: t('settings.nav.general', 'General'),
-          value: `v${general.software.version}`,
-        },
-        {
-          key: 'appearance',
-          icon: Palette,
-          label: t('settings.nav.appearance', 'Appearance'),
-          value: [
-            session.appearance.theme === 'dark' ? t('common.dark', 'Dark') : t('common.light', 'Light'),
-            session.appearance.language.toUpperCase(),
-          ].join(' · '),
-        },
-      ],
-    },
-    {
-      title: t('settings.mobile.networkSecurity', 'Network & Security'),
-      items: [
-        {
-          key: 'cluster',
-          icon: Network,
-          label: t('settings.nav.cluster', 'Cluster Manager'),
-          value: cluster.overview.clusterMode === 'single_node'
-            ? t('settings.cluster.singleNode', 'Single Node')
-            : `${cluster.overview.nodeCount} ${t('settings.cluster.nodes', 'Nodes')}`,
-        },
-        {
-          key: 'privacy',
-          icon: Shield,
-          label: t('settings.nav.privacy', 'Privacy'),
-        },
-      ],
-    },
-    {
-      title: t('settings.mobile.advanced', 'Advanced'),
-      items: [
-        {
-          key: 'developer',
-          icon: Code,
-          label: t('settings.nav.developer', 'Developer Mode'),
-          value: developer.modeEnabled
-            ? t('settings.developer.on', 'On')
-            : t('settings.developer.off', 'Off'),
-        },
-      ],
-    },
-  ]
+  const groups = settingsPageGroups.map((group) => ({
+    ...group,
+    items: settingsPageDefinitions.filter((item) => item.group === group.key),
+  }))
 
   return (
-    <div className="px-4 py-4 space-y-5">
-      {/* Header */}
-      <h1 className="text-xl font-bold px-1" style={{ color: 'var(--cp-text)' }}>
-        {t('settings.title', 'Settings')}
-      </h1>
+    <div className="space-y-4 px-4 py-4">
+      <PanelIntro
+        kicker={t('apps.settings', 'Settings')}
+        title={t('settings.title', 'Settings')}
+        body={t('settings.body', 'Choose the language and appearance for your desktop shell.')}
+      />
 
-      {/* Groups */}
+      <div className="grid grid-cols-2 gap-3">
+        <MetricCard
+          label={t('settings.nav.appearance', 'Appearance')}
+          tone="accent"
+          value={session.appearance.theme === 'dark'
+            ? t('common.dark', 'Dark')
+            : t('common.light', 'Light')}
+        />
+        <MetricCard
+          label={t('settings.nav.cluster', 'Cluster Manager')}
+          tone="success"
+          value={cluster.overview.clusterMode === 'single_node'
+            ? t('settings.cluster.singleNode', 'Single Node')
+            : `${cluster.overview.nodeCount}`}
+        />
+        <div className="col-span-2">
+          <MetricCard
+            label={t('settings.nav.developer', 'Developer Mode')}
+            tone={developer.modeEnabled ? 'warning' : 'neutral'}
+            value={developer.modeEnabled
+              ? t('settings.developer.on', 'On')
+              : t('settings.developer.off', 'Off')}
+          />
+        </div>
+      </div>
+
       {groups.map((group) => (
-        <div key={group.title}>
-          <p
-            className="text-xs font-medium uppercase tracking-wide px-1 mb-1.5"
-            style={{ color: 'var(--cp-muted)' }}
-          >
-            {group.title}
-          </p>
-          <div
-            className="rounded-xl overflow-hidden"
-            style={{ background: 'color-mix(in srgb, var(--cp-surface) 90%, transparent)' }}
-          >
-            {group.items.map((item, idx) => (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => onNavigate(item.key)}
-                className="flex items-center gap-3 w-full px-4 py-3 text-left transition-colors active:opacity-70"
-                style={{
-                  borderTop: idx > 0 ? '1px solid var(--cp-border)' : undefined,
-                }}
-              >
-                <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+        <section key={group.key} className="shell-subtle-panel p-2">
+          <div className="px-3 pb-2 pt-2">
+            <p className="shell-kicker">{t(group.labelKey, group.label)}</p>
+          </div>
+          <div className="space-y-1">
+            {group.items.map((item) => {
+              const fallbackGroup = getSettingsPageGroup(item.group)
+
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => onNavigate(item.key)}
+                  className="flex w-full items-center gap-3 rounded-[18px] px-3 py-3.5 text-left transition-colors active:opacity-70"
                   style={{
-                    background: 'color-mix(in srgb, var(--cp-accent) 14%, transparent)',
-                    color: 'var(--cp-accent)',
+                    background: 'color-mix(in srgb, var(--cp-surface) 82%, transparent)',
                   }}
                 >
-                  <item.icon size={16} />
-                </div>
-                <span className="flex-1 text-sm font-medium" style={{ color: 'var(--cp-text)' }}>
-                  {item.label}
-                </span>
-                {item.value && (
-                  <span className="text-xs mr-1" style={{ color: 'var(--cp-muted)' }}>
-                    {item.value}
-                  </span>
-                )}
-                <ChevronRight size={16} style={{ color: 'var(--cp-muted)' }} />
-              </button>
-            ))}
+                  <div
+                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px]"
+                    style={{
+                      background: 'color-mix(in srgb, var(--cp-accent-soft) 18%, var(--cp-surface))',
+                      color: 'var(--cp-accent)',
+                    }}
+                  >
+                    <item.icon size={18} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold" style={{ color: 'var(--cp-text)' }}>
+                      {t(item.labelKey, item.label)}
+                    </p>
+                    <p className="mt-0.5 truncate text-xs" style={{ color: 'var(--cp-muted)' }}>
+                      {itemValues[item.key] ?? t(fallbackGroup.labelKey, fallbackGroup.label)}
+                    </p>
+                  </div>
+                  <ChevronRight size={16} style={{ color: 'var(--cp-muted)' }} />
+                </button>
+              )
+            })}
           </div>
-        </div>
+        </section>
       ))}
     </div>
   )

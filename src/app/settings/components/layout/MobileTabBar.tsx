@@ -1,6 +1,6 @@
 import { Settings, Palette, Network, Shield, Code } from 'lucide-react'
 import { useI18n } from '../../../../i18n/provider'
-import type { SettingsPage } from './Sidebar'
+import type { SettingsPage } from './navigation'
 
 const tabs = [
   { key: 'general' as const, icon: Settings, labelKey: 'settings.nav.general', label: 'General' },

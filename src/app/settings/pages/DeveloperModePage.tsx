@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useI18n } from '../../../i18n/provider'
 import { useSettingsSnapshot, useSettingsStore } from '../hooks/use-settings-store'
 import { Section, CollapsibleSection, StatusBadge } from '../components/shared/Section'
+import { SettingsPageIntro } from '../components/shared/SettingsPageIntro'
 import type { ConfigNode, DiagnosticStatus } from '../mock/types'
 
 const diagnosticIcons: Record<DiagnosticStatus, typeof CheckCircle> = {
@@ -26,16 +27,15 @@ export function DeveloperModePage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold" style={{ color: 'var(--cp-text)' }}>
-          {t('settings.developer.title', 'Developer Mode')}
-        </h2>
-        <p className="mt-1 text-sm" style={{ color: 'var(--cp-muted)' }}>
-          {t('settings.developer.description', 'System diagnostics, configuration, and debug tools.')}
-        </p>
-      </div>
+      <SettingsPageIntro
+        page="developer"
+        title={t('settings.developer.title', 'Developer Mode')}
+        description={t(
+          'settings.developer.description',
+          'System diagnostics, configuration, and debug tools.',
+        )}
+      />
 
-      {/* Mode Switch */}
       <Section title={t('settings.developer.modeSwitch', 'Mode')}>
         <div className="flex items-center justify-between">
           <div>

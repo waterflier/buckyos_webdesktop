@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useI18n } from '../../../i18n/provider'
 import { useSettingsSnapshot, useSettingsStore } from '../hooks/use-settings-store'
 import { Section, InfoRow } from '../components/shared/Section'
+import { SettingsPageIntro } from '../components/shared/SettingsPageIntro'
 import { localeLabels } from '../../../mock/data'
 import type { AppContentLoaderProps } from '../../types'
 import type { FontSize } from '../mock/types'
@@ -55,16 +56,15 @@ export function AppearancePage({ appProps }: AppearancePageProps) {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold" style={{ color: 'var(--cp-text)' }}>
-          {t('settings.appearance.title', 'Appearance')}
-        </h2>
-        <p className="mt-1 text-sm" style={{ color: 'var(--cp-muted)' }}>
-          {t('settings.appearance.description', 'Customize the look and feel for your current session.')}
-        </p>
-      </div>
+      <SettingsPageIntro
+        page="appearance"
+        title={t('settings.appearance.title', 'Appearance')}
+        description={t(
+          'settings.appearance.description',
+          'Customize the look and feel for your current session.',
+        )}
+      />
 
-      {/* Current Session */}
       <Section title={t('settings.appearance.currentSession', 'Current Session')}>
         <div className="space-y-0.5">
           <InfoRow label={t('settings.appearance.sessionName', 'Session Name')} value={session.session.name} />

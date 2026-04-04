@@ -3,7 +3,7 @@ import { useMediaQuery } from '@mui/material'
 import { Sidebar } from './Sidebar'
 import { MobileSettingsList } from './MobileSettingsList'
 import { MobileDetailHeader } from './MobileDetailHeader'
-import type { SettingsPage } from './Sidebar'
+import type { SettingsPage } from './navigation'
 
 interface SettingsShellProps {
   children: (page: SettingsPage, navigate: (page: SettingsPage) => void) => React.ReactNode
@@ -23,23 +23,21 @@ export function SettingsShell({ children }: SettingsShellProps) {
   return (
     <div className="flex flex-col h-full w-full" style={{ background: 'var(--cp-bg)' }}>
       {isMobile ? (
-        // Mobile: drill-in navigation
         activePage === null ? (
           <div className="flex-1 overflow-y-auto">
             <MobileSettingsList onNavigate={handleNavigate} />
           </div>
         ) : (
           <>
-            <MobileDetailHeader onBack={handleBack} />
+            <MobileDetailHeader page={activePage} onBack={handleBack} />
             <main className="flex-1 overflow-y-auto">
-              <div className="px-4 py-4">
+              <div className="px-4 pb-5 pt-2">
                 {children(activePage, handleNavigate)}
               </div>
             </main>
           </>
         )
       ) : (
-        // Desktop: sidebar + content
         <div className="flex flex-1 min-h-0">
           <Sidebar currentPage={activePage!} onNavigate={handleNavigate} />
           <main

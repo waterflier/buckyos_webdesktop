@@ -2,6 +2,7 @@ import { Globe, Users, Lock, MessageCircle, Shield, Cpu } from 'lucide-react'
 import { useI18n } from '../../../i18n/provider'
 import { useSettingsSnapshot } from '../hooks/use-settings-store'
 import { Section, StatusBadge } from '../components/shared/Section'
+import { SettingsPageIntro } from '../components/shared/SettingsPageIntro'
 import type { DataVisibility, AppRiskLevel, DeviceAccessType } from '../mock/types'
 
 const visibilityIcons: Record<string, typeof Globe> = {
@@ -22,16 +23,15 @@ export function PrivacyPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold" style={{ color: 'var(--cp-text)' }}>
-          {t('settings.privacy.title', 'Privacy')}
-        </h2>
-        <p className="mt-1 text-sm" style={{ color: 'var(--cp-muted)' }}>
-          {t('settings.privacy.description', 'Understand who can access your system, data, and devices.')}
-        </p>
-      </div>
+      <SettingsPageIntro
+        page="privacy"
+        title={t('settings.privacy.title', 'Privacy')}
+        description={t(
+          'settings.privacy.description',
+          'Understand who can access your system, data, and devices.',
+        )}
+      />
 
-      {/* Public Access */}
       <Section title={t('settings.privacy.publicAccess', 'Public Access')}>
         <div className="space-y-2">
           {privacy.publicAccess.map((entry) => (
