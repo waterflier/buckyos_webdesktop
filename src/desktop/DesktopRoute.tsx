@@ -1921,7 +1921,7 @@ function DesktopTile({
         >
             <span
               className={clsx(
-                'relative flex items-center justify-center overflow-hidden border shadow-[0_16px_28px_color-mix(in_srgb,var(--cp-shadow)_14%,transparent)]',
+                'relative flex items-center justify-center overflow-hidden shadow-[0_8px_20px_color-mix(in_srgb,var(--cp-shadow)_10%,transparent)]',
                 isCompactAppTile
                   ? 'h-11 w-11 rounded-[15px]'
                   : 'h-14 w-14 rounded-[20px] sm:h-16 sm:w-16',

@@ -180,7 +180,7 @@ export function DemosAppPanel({
           <div className="shell-subtle-panel max-w-[18rem] px-4 py-3">
             <div className="flex items-center gap-3">
               <span
-                className="flex h-12 w-12 items-center justify-center rounded-[18px] border shadow-[0_16px_32px_color-mix(in_srgb,var(--cp-shadow)_10%,transparent)]"
+                className="flex h-12 w-12 items-center justify-center rounded-[18px] shadow-[0_8px_20px_color-mix(in_srgb,var(--cp-shadow)_10%,transparent)]"
                 style={appIconSurfaceStyle('var(--cp-accent-soft)', 'window')}
               >
                 <AppIcon iconKey="demos" className="text-white" />
@@ -501,7 +501,7 @@ export function DemosAppPanel({
                 <div className="rounded-[24px] border border-[color:color-mix(in_srgb,var(--cp-border)_84%,transparent)] bg-[color:color-mix(in_srgb,var(--cp-surface)_92%,transparent)] p-4">
                   <div className="flex items-start gap-4">
                     <span
-                      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border shadow-[0_12px_26px_color-mix(in_srgb,var(--cp-shadow)_10%,transparent)]"
+                      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] shadow-[0_8px_20px_color-mix(in_srgb,var(--cp-shadow)_10%,transparent)]"
                       style={appIconSurfaceStyle('var(--cp-accent-soft)', 'window')}
                     >
                       <AppIcon iconKey="demos" className="text-white" />

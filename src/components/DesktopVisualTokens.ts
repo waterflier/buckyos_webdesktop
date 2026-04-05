@@ -13,11 +13,10 @@ export function appIconSurfaceStyle(
   accent: string,
   tone: 'tile' | 'window' = 'tile',
 ) {
-  const leadingMix = tone === 'tile' ? '68%' : '60%'
-  const trailingMix = tone === 'tile' ? '18%' : '14%'
+  const baseMix = tone === 'tile' ? '52%' : '46%'
+  const edgeMix = tone === 'tile' ? '42%' : '36%'
 
   return {
-    borderColor: `color-mix(in srgb, ${accent} 18%, var(--cp-border))`,
-    background: `linear-gradient(165deg, color-mix(in srgb, ${accent} ${leadingMix}, var(--cp-surface-2)), color-mix(in srgb, ${accent} ${trailingMix}, var(--cp-surface)))`,
+    background: `linear-gradient(165deg, color-mix(in srgb, ${accent} ${baseMix}, var(--cp-surface-2)), color-mix(in srgb, ${accent} ${edgeMix}, var(--cp-surface-2)))`,
   }
 }
