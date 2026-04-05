@@ -8,6 +8,7 @@ import { MarketAppPanel } from './market/MarketAppPanel'
 import { MessageHubAppPanel } from './messagehub/MessageHubAppPanel'
 import { SettingsAppPanel } from './settings/SettingsAppPanel'
 import { StudioAppPanel } from './studio/StudioAppPanel'
+import { TaskCenterAppPanel } from './task-center/TaskCenterAppPanel'
 import { UsersAgentsAppPanel } from './users-agents/UsersAgentsAppPanel'
 import { UnsupportedAppPanel } from './unsupported/UnsupportedAppPanel'
 import {
@@ -28,6 +29,7 @@ const appLoaders = {
   codeassistant: CodeAssistantAppPanel,
   messagehub: MessageHubAppPanel,
   homestation: HomeStationAppPanel,
+  'task-center': TaskCenterAppPanel,
   'users-agents': UsersAgentsAppPanel,
 } as const
 

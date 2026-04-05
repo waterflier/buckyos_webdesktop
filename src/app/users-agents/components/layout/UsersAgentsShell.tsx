@@ -1,9 +1,7 @@
 /* ── Users & Agents – main shell layout ── */
 
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useMediaQuery } from '@mui/material'
-import { ArrowLeft } from 'lucide-react'
-import { IconButton } from '@mui/material'
 import { Sidebar } from './Sidebar'
 import { CollectionList } from './CollectionList'
 import { EmptyPlaceholder } from '../detail/EmptyPlaceholder'
@@ -14,6 +12,7 @@ import { ContactDetailPage } from '../detail/ContactDetailPage'
 import { EntityGroupDetailPage } from '../detail/EntityGroupDetailPage'
 import { NewUserWizard } from '../shared/NewUserWizard'
 import { useEntity, useUsersAgentsStore } from '../../hooks/use-users-agents-store'
+import { useMobileBackHandler } from '../../../../desktop/windows/MobileNavContext'
 import type { SidebarSelection } from '../../mock/types'
 
 function DetailRouter({ entityId, onRemoved }: { entityId: string; onRemoved?: () => void }) {
@@ -49,13 +48,14 @@ export function UsersAgentsShell() {
     setShowNewUser(false)
   }
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     if (collectionElementId) {
       setCollectionElementId(null)
     } else {
       setSelection(null)
+      setShowNewUser(false)
     }
-  }
+  }, [collectionElementId])
 
   const handleRenameCollection = (id: string, currentName: string) => {
     const newName = window.prompt('Rename collection:', currentName)
@@ -84,6 +84,10 @@ export function UsersAgentsShell() {
     setCollectionElementId(null)
   }
 
+  // Register back handler: any mobile sub-page that isn't the root sidebar
+  const isOnSubPage = isMobile && (selection !== null || showNewUser)
+  useMobileBackHandler(isOnSubPage ? handleBack : null)
+
   // ── Mobile layout ──
   if (isMobile) {
     // level 0: sidebar
@@ -105,10 +109,6 @@ export function UsersAgentsShell() {
     if (showNewUser) {
       return (
         <div className="flex flex-col h-full w-full" style={{ background: 'var(--cp-bg)' }}>
-          <div className="flex items-center gap-2 px-2 py-2" style={{ borderBottom: '1px solid color-mix(in srgb, var(--cp-border) 50%, transparent)' }}>
-            <IconButton size="small" onClick={() => setShowNewUser(false)}><ArrowLeft size={18} /></IconButton>
-            <span className="font-display text-sm font-semibold" style={{ color: 'var(--cp-text)' }}>Back</span>
-          </div>
           <div className="flex-1 overflow-y-auto desktop-scrollbar px-4 py-4">
             <NewUserWizard onClose={() => setShowNewUser(false)} onCreated={handleUserCreated} />
           </div>
@@ -120,10 +120,6 @@ export function UsersAgentsShell() {
     if (selection?.kind === 'collection' && !collectionElementId) {
       return (
         <div className="flex flex-col h-full w-full" style={{ background: 'var(--cp-bg)' }}>
-          <div className="flex items-center gap-2 px-2 py-2" style={{ borderBottom: '1px solid color-mix(in srgb, var(--cp-border) 50%, transparent)' }}>
-            <IconButton size="small" onClick={handleBack}><ArrowLeft size={18} /></IconButton>
-            <span className="font-display text-sm font-semibold" style={{ color: 'var(--cp-text)' }}>Back</span>
-          </div>
           <div className="flex-1 overflow-hidden">
             <CollectionList
               collectionId={selection.collectionId}
@@ -143,10 +139,6 @@ export function UsersAgentsShell() {
 
     return (
       <div className="flex flex-col h-full w-full" style={{ background: 'var(--cp-bg)' }}>
-        <div className="flex items-center gap-2 px-2 py-2" style={{ borderBottom: '1px solid color-mix(in srgb, var(--cp-border) 50%, transparent)' }}>
-          <IconButton size="small" onClick={handleBack}><ArrowLeft size={18} /></IconButton>
-          <span className="font-display text-sm font-semibold" style={{ color: 'var(--cp-text)' }}>Back</span>
-        </div>
         <main className="flex-1 overflow-y-auto desktop-scrollbar">
           <div className="px-4 pb-5 pt-3">
             {detailEntityId ? <DetailRouter entityId={detailEntityId} onRemoved={handleEntityRemoved} /> : <EmptyPlaceholder />}

@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   BellDot,
   CheckCheck,
+  ChevronLeft,
   Ellipsis,
   HardDriveDownload,
   LoaderCircle,
@@ -13,6 +14,7 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '../i18n/provider'
 import type { AppDefinition, FormFactor, LayoutState, ThemeMode } from '../models/ui'
+import { useMobileNavState } from './windows/MobileNavContext'
 import {
   connectionLabel,
   connectionTone,
@@ -47,6 +49,19 @@ function StatusLogoButton({
       }}
     >
       B
+    </button>
+  )
+}
+
+function MobileBackButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label="Back"
+      onClick={onClick}
+      className="pointer-events-auto inline-flex h-9 w-9 items-center justify-center rounded-full border border-[color:color-mix(in_srgb,var(--cp-border)_82%,transparent)] bg-[color:color-mix(in_srgb,var(--cp-surface)_88%,transparent)] text-[color:var(--cp-text)] shadow-[0_10px_24px_color-mix(in_srgb,var(--cp-shadow)_12%,transparent)] transition-transform duration-150 ease-[var(--cp-ease-emphasis)] active:scale-[0.96]"
+    >
+      <ChevronLeft size={20} />
     </button>
   )
 }
@@ -344,6 +359,7 @@ export function StatusBar({
   const { locale, t } = useI18n()
   const now = useMinuteClock()
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
+  const mobileNav = useMobileNavState()
   const activeMode =
     formFactor === 'mobile' && activeApp ? mobileStatusBarMode(activeApp) : null
   const barHeight = shellStatusBarHeight(formFactor, activeApp)
@@ -397,7 +413,11 @@ export function StatusBar({
         {activeMode === 'standard' && activeApp ? (
           <>
             <div className="flex min-w-0 items-center gap-2">
-              <StatusLogoButton connectionState={connectionState} onClick={onOpenSidebar} />
+              {mobileNav.canGoBack ? (
+                <MobileBackButton onClick={mobileNav.goBack} />
+              ) : (
+                <StatusLogoButton connectionState={connectionState} onClick={onOpenSidebar} />
+              )}
               <button
                 type="button"
                 onClick={onToggleTheme}
@@ -445,11 +465,15 @@ export function StatusBar({
         ) : (
           <>
             <div className="flex min-w-0 items-center gap-2.5">
-              <StatusLogoButton
-                connectionState={connectionState}
-                highlightBorder={!isDesktop}
-                onClick={onOpenSidebar}
-              />
+              {mobileNav.canGoBack ? (
+                <MobileBackButton onClick={mobileNav.goBack} />
+              ) : (
+                <StatusLogoButton
+                  connectionState={connectionState}
+                  highlightBorder={!isDesktop}
+                  onClick={onOpenSidebar}
+                />
+              )}
               {activeMode === 'compact' && activeApp ? (
                 <div className="min-w-0">
                   <p className="truncate font-display text-sm font-semibold text-[color:var(--cp-text)]">

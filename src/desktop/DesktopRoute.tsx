@@ -44,6 +44,7 @@ import {
   getDesktopWindowPositionBounds,
   getDesktopWindowWorkspaceBounds,
 } from './windows/geometry'
+import { MobileNavProvider } from './windows/MobileNavContext'
 import { MobileWindowSheet } from './windows/MobileWindowSheet'
 import {
   createDesktopWindowLayerDataModel,
@@ -1494,7 +1495,7 @@ export function DesktopRoute() {
           className="relative h-dvh min-h-dvh"
         >
           {!isLoading && !error && layoutState ? (
-            <>
+            <MobileNavProvider>
               <SystemSidebar
                 connectionState={connectionState}
                 deadZone={resolvedDeadZone}
@@ -1671,7 +1672,7 @@ export function DesktopRoute() {
                   windowAppearance={windowAppearance}
                 />
               )}
-            </>
+            </MobileNavProvider>
           ) : null}
 
           {isLoading ? <LoadingState /> : null}

@@ -10,6 +10,7 @@ import { DesktopRoute } from './desktop/DesktopRoute'
 import { FilesRoute } from './app/files/FilesRoute'
 import { HomeStationRoute } from './app/homestation/HomeStationRoute'
 import { MessageHubRoute } from './app/messagehub/MessageHubRoute'
+import { TaskCenterRoute } from './app/task-center/TaskCenterRoute'
 
 const router = createBrowserRouter([
   {
@@ -27,6 +28,10 @@ const router = createBrowserRouter([
   {
     path: '/messagehub',
     element: <MessageHubRoute />,
+  },
+  {
+    path: '/taskcenter',
+    element: <TaskCenterRoute />,
   },
   {
     path: '*',

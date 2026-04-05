@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useMediaQuery } from '@mui/material'
 import { Sidebar } from './Sidebar'
 import { MobileSettingsList } from './MobileSettingsList'
-import { MobileDetailHeader } from './MobileDetailHeader'
+import { useMobileBackHandler } from '../../../../desktop/windows/MobileNavContext'
 import type { SettingsPage } from './navigation'
 
 interface SettingsShellProps {
@@ -18,7 +18,10 @@ export function SettingsShell({ children }: SettingsShellProps) {
   const activePage = isMobile ? currentPage : (currentPage ?? 'general')
 
   const handleNavigate = (page: SettingsPage) => setCurrentPage(page)
-  const handleBack = () => setCurrentPage(null)
+  const handleBack = useCallback(() => setCurrentPage(null), [])
+
+  // Register back handler with the shell status bar when on a detail page
+  useMobileBackHandler(isMobile && activePage !== null ? handleBack : null)
 
   return (
     <div className="flex flex-col h-full w-full" style={{ background: 'var(--cp-bg)' }}>
@@ -28,14 +31,11 @@ export function SettingsShell({ children }: SettingsShellProps) {
             <MobileSettingsList onNavigate={handleNavigate} />
           </div>
         ) : (
-          <>
-            <MobileDetailHeader page={activePage} onBack={handleBack} />
-            <main className="flex-1 overflow-y-auto">
-              <div className="px-4 pb-5 pt-2">
-                {children(activePage, handleNavigate)}
-              </div>
-            </main>
-          </>
+          <main className="flex-1 overflow-y-auto">
+            <div className="px-4 pb-5 pt-2">
+              {children(activePage, handleNavigate)}
+            </div>
+          </main>
         )
       ) : (
         <div className="flex flex-1 min-h-0">
