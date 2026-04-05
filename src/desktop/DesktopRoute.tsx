@@ -214,10 +214,65 @@ function useSafeAreaInsets() {
   return insets
 }
 
-const gridSpec = {
-  desktop: { cols: 8, rows: 5, rowHeight: 112 },
-  mobile: { cols: 4, rows: 6, rowHeight: 96 },
-} as const
+/** Density tier for the grid slot system. */
+export type GridDensity = 'small' | 'medium' | 'large'
+
+const densityRowHeight: Record<GridDensity, number> = {
+  small: 92,
+  medium: 108,
+  large: 124,
+}
+
+const GRID_GAP = 2
+
+/** Compute responsive column count from container width (px). */
+function columnsForWidth(width: number): number {
+  if (width < 480) return 4
+  if (width < 768) return 6
+  if (width < 1024) return 8
+  if (width < 1440) return 10
+  return 12
+}
+
+/** Compute how many rows fit in the available height for the given density. */
+function rowsForHeight(height: number, density: GridDensity): number {
+  const slotH = densityRowHeight[density]
+  return Math.max(1, Math.floor((height + GRID_GAP) / (slotH + GRID_GAP)))
+}
+
+function useGridSpec(
+  containerRef: { current: HTMLElement | null },
+  density: GridDensity,
+  isMobile: boolean,
+) {
+  const [cols, setCols] = useState(() => (isMobile ? 4 : 10))
+  const [containerHeight, setContainerHeight] = useState(720)
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+
+    const ro = new ResizeObserver((entries) => {
+      const entry = entries[0]
+      if (!entry) return
+      const w = entry.contentRect.width
+      const h = entry.contentRect.height
+      const nextCols = isMobile ? 4 : columnsForWidth(w)
+      setCols(nextCols)
+      setContainerHeight(h)
+      // Sync CSS variable for any pure-CSS consumers
+      el.style.setProperty('--grid-columns', String(nextCols))
+    })
+
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [containerRef, isMobile])
+
+  const rowHeight = densityRowHeight[density]
+  const rows = rowsForHeight(containerHeight, density)
+
+  return { cols, rows, rowHeight }
+}
 
 function useConnectionState(runtimeContainer: string): ConnectionState {
   const [isNavigatorOnline, setIsNavigatorOnline] = useState(() => navigator.onLine)
@@ -403,6 +458,10 @@ function fits(
       return false
     }
 
+    if (item.x === undefined || item.y === undefined) {
+      return false
+    }
+
     return !(
       x + w <= item.x ||
       item.x + item.w <= x ||
@@ -412,132 +471,128 @@ function fits(
   })
 }
 
-function findNextSlot(
+/**
+ * Find a slot at the tail of the page (after the last positioned content).
+ * Unlike `findNextSlot` which scans from (0,0) and fills gaps,
+ * this only places items after the last content, preserving manual layout.
+ */
+function findTailSlot(
   page: DesktopPageState,
-  item: LayoutItem,
-  formFactor: FormFactor,
-) {
-  const spec = gridSpec[formFactor]
+  w: number,
+  h: number,
+  cols: number,
+  rows: number,
+): { x: number; y: number } | null {
+  let maxLinearEnd = 0
+  for (const item of page.items) {
+    if (item.x === undefined || item.y === undefined) continue
+    for (let row = item.y; row < item.y + item.h; row++) {
+      const linearEnd = row * cols + (item.x + item.w)
+      maxLinearEnd = Math.max(maxLinearEnd, linearEnd)
+    }
+  }
 
-  for (let y = 0; y < spec.rows; y += 1) {
-    for (let x = 0; x < spec.cols; x += 1) {
-      if (fits(page, x, y, item.w, item.h, spec.cols, spec.rows, item.id)) {
+  const startRow = Math.floor(maxLinearEnd / cols)
+  const startCol = maxLinearEnd % cols
+
+  for (let y = startRow; y + h <= rows; y++) {
+    const sx = y === startRow ? startCol : 0
+    for (let x = sx; x + w <= cols; x++) {
+      if (fits(page, x, y, w, h, cols, rows)) {
         return { x, y }
       }
     }
   }
 
-  return { x: 0, y: 0 }
+  return null
+}
+
+/**
+ * Mark positioned items as unpositioned when their position exceeds
+ * the current grid bounds (e.g. after a resize).
+ */
+function invalidatePositions(
+  layout: LayoutState,
+  cols: number,
+  rows: number,
+): LayoutState {
+  let anyChanged = false
+  const pages = layout.pages.map((page) => {
+    let pageChanged = false
+    const items = page.items.map((item) => {
+      if (item.x === undefined || item.y === undefined) return item
+      if (item.x + item.w > cols || item.y + item.h > rows) {
+        pageChanged = true
+        return { ...item, x: undefined, y: undefined }
+      }
+      return item
+    })
+    if (pageChanged) anyChanged = true
+    return pageChanged ? { ...page, items } : page
+  })
+  return anyChanged ? { ...layout, pages } : layout
+}
+
+/**
+ * Resolve all unpositioned items by placing them at the tail of each page.
+ * Returns a fully-positioned layout suitable for rendering.
+ */
+function resolveLayout(
+  layout: LayoutState,
+  cols: number,
+  rows: number,
+): LayoutState {
+  const unpositioned: LayoutItem[] = []
+  const resolvedPages: DesktopPageState[] = layout.pages.map((page) => ({
+    ...page,
+    items: page.items.filter((item) => {
+      if (item.x === undefined || item.y === undefined) {
+        unpositioned.push(item)
+        return false
+      }
+      return true
+    }),
+  }))
+
+  if (unpositioned.length === 0) {
+    return layout
+  }
+
+  for (const item of unpositioned) {
+    let placed = false
+    for (const page of resolvedPages) {
+      const slot = findTailSlot(page, item.w, item.h, cols, rows)
+      if (slot) {
+        page.items.push({ ...item, x: slot.x, y: slot.y })
+        placed = true
+        break
+      }
+    }
+    if (!placed) {
+      resolvedPages.push({
+        id: `${layout.formFactor}-page-${resolvedPages.length + 1}`,
+        items: [{ ...item, x: 0, y: 0 }],
+      })
+    }
+  }
+
+  return { ...layout, pages: resolvedPages }
 }
 
 function mapPageToGrid(page: DesktopPageState): GridLayoutItem[] {
-  return page.items.map((item) => ({
-    i: item.id,
-    x: item.x,
-    y: item.y,
-    w: item.w,
-    h: item.h,
-    static: false,
-  }))
-}
-
-function clampToGrid(item: LayoutItem, formFactor: FormFactor) {
-  const spec = gridSpec[formFactor]
-
-  return {
-    x: Math.max(0, Math.min(item.x, spec.cols - item.w)),
-    y: Math.max(0, Math.min(item.y, spec.rows - item.h)),
-  }
-}
-
-function normalizePageItems(
-  page: DesktopPageState,
-  formFactor: FormFactor,
-  prioritizedItemId?: string,
-) {
-  const placements = new Map<string, { x: number; y: number }>()
-  const workingPage: DesktopPageState = { ...page, items: [] }
-  const stableOrder = new Map(page.items.map((item, index) => [item.id, index]))
-  const orderedItems = [...page.items].sort((left, right) => {
-    if (left.id === prioritizedItemId) {
-      return -1
-    }
-
-    if (right.id === prioritizedItemId) {
-      return 1
-    }
-
-    if (left.y !== right.y) {
-      return left.y - right.y
-    }
-
-    if (left.x !== right.x) {
-      return left.x - right.x
-    }
-
-    return (stableOrder.get(left.id) ?? 0) - (stableOrder.get(right.id) ?? 0)
-  })
-
-  orderedItems.forEach((item) => {
-    const clamped = clampToGrid(item, formFactor)
-    const target =
-      fits(
-        workingPage,
-        clamped.x,
-        clamped.y,
-        item.w,
-        item.h,
-        gridSpec[formFactor].cols,
-        gridSpec[formFactor].rows,
-        item.id,
-      )
-        ? clamped
-        : findNextSlot(
-            workingPage,
-            { ...item, x: clamped.x, y: clamped.y },
-            formFactor,
-          )
-
-    placements.set(item.id, target)
-    workingPage.items.push({ ...item, x: target.x, y: target.y })
-  })
-
-  return {
-    ...page,
-    items: page.items.map((item) => {
-      const target = placements.get(item.id)
-      return target ? { ...item, x: target.x, y: target.y } : item
-    }),
-  }
-}
-
-function updatePageFromGrid(
-  page: DesktopPageState,
-  nextLayout: Layout,
-  formFactor: FormFactor,
-) {
-  const layoutMap = new Map(nextLayout.map((entry) => [entry.i, entry]))
-  const prioritizedItemId = nextLayout.find((entry) => entry.moved)?.i
-  const nextPage = {
-    ...page,
-    items: page.items.map((item) => {
-      const positioned = layoutMap.get(item.id)
-
-      if (!positioned) {
-        return item
-      }
-
-      return {
-        ...item,
-        x: positioned.x,
-        y: positioned.y,
-        w: positioned.w,
-        h: positioned.h,
-      }
-    }),
-  }
-
-  return normalizePageItems(nextPage, formFactor, prioritizedItemId)
+  return page.items
+    .filter(
+      (item): item is LayoutItem & { x: number; y: number } =>
+        item.x !== undefined && item.y !== undefined,
+    )
+    .map((item) => ({
+      i: item.id,
+      x: item.x,
+      y: item.y,
+      w: item.w,
+      h: item.h,
+      static: false,
+    }))
 }
 
 function sanitizeLayoutForApps(
@@ -578,12 +633,9 @@ function reconcileLayoutWithDefaultApps(
       page.items.flatMap((item) => (item.type === 'app' ? [item.appId] : [])),
     ),
   )
-  const pages = sanitizedLayout.pages.map((page) => ({
-    ...page,
-    items: [...page.items],
-  }))
 
-  defaultLayout.pages.forEach((defaultPage, pageIndex) => {
+  const newItems: LayoutItem[] = []
+  defaultLayout.pages.forEach((defaultPage) => {
     defaultPage.items.forEach((item) => {
       if (
         item.type !== 'app' ||
@@ -592,41 +644,25 @@ function reconcileLayoutWithDefaultApps(
       ) {
         return
       }
-
-      while (pages.length <= pageIndex) {
-        pages.push({
-          id: `${formFactor}-page-${pages.length + 1}`,
-          items: [],
-        })
-      }
-
-      const targetPage = pages[pageIndex]
-      const placement = fits(
-        targetPage,
-        item.x,
-        item.y,
-        item.w,
-        item.h,
-        gridSpec[formFactor].cols,
-        gridSpec[formFactor].rows,
-        item.id,
-      )
-        ? { x: item.x, y: item.y }
-        : findNextSlot(targetPage, item, formFactor)
-
-      targetPage.items.push({
-        ...item,
-        x: placement.x,
-        y: placement.y,
-      })
+      newItems.push({ ...item, x: undefined, y: undefined })
       existingAppIds.add(item.appId)
     })
   })
 
-  return {
-    ...sanitizedLayout,
-    pages: pages.map((page) => normalizePageItems(page, formFactor)),
+  if (newItems.length === 0) {
+    return sanitizedLayout
   }
+
+  const pages = sanitizedLayout.pages.map((page) => ({
+    ...page,
+    items: [...page.items],
+  }))
+  if (pages.length === 0) {
+    pages.push({ id: `${formFactor}-page-1`, items: [] })
+  }
+  pages[pages.length - 1].items.push(...newItems)
+
+  return { ...sanitizedLayout, pages }
 }
 
 export function DesktopRoute() {
@@ -677,6 +713,8 @@ export function DesktopRoute() {
     height: window.innerHeight,
   }))
   const [workspaceSize, setWorkspaceSize] = useState({ width: 960, height: 720 })
+  const [density] = useState<GridDensity>('medium')
+  const gridContainerRef = useRef<HTMLDivElement | null>(null)
 
   const { data, error, isLoading, mutate } = useSWR(
     ['desktop-payload', formFactor, scenario],
@@ -692,7 +730,8 @@ export function DesktopRoute() {
     [data?.apps, formFactor],
   )
   const connectionState = useConnectionState(runtimeContainer)
-  const currentSpec = gridSpec[formFactor]
+  const gridSpec = useGridSpec(gridContainerRef, density, isMobile)
+  const currentSpec = gridSpec
   const resetViewportState = () => {
     setWindows([])
   }
@@ -759,6 +798,21 @@ export function DesktopRoute() {
 
     writeJson(layoutStorageKey(formFactor), layoutState)
   }, [formFactor, layoutState, scenario])
+
+  // When the grid spec changes, mark out-of-bounds items as unpositioned
+  useEffect(() => {
+    setLayoutState((prev) => {
+      if (!prev) return prev
+      const next = invalidatePositions(prev, currentSpec.cols, currentSpec.rows)
+      return next !== prev ? next : prev
+    })
+  }, [currentSpec.cols, currentSpec.rows])
+
+  // Compute a fully-positioned layout for rendering (fills in auto-positions)
+  const resolvedLayout = useMemo(() => {
+    if (!layoutState) return null
+    return resolveLayout(layoutState, currentSpec.cols, currentSpec.rows)
+  }, [layoutState, currentSpec.cols, currentSpec.rows])
 
   useEffect(() => {
     if (!workspaceRef.current) {
@@ -1062,20 +1116,10 @@ export function DesktopRoute() {
     )
   }
 
-  const handleLayoutChange = (pageId: string, nextLayout: Layout) => {
-    setLayoutState((prev) => {
-      if (!prev) {
-        return prev
-      }
-
-      return {
-        ...prev,
-        pages: prev.pages.map((page) =>
-          page.id === pageId ? updatePageFromGrid(page, nextLayout, formFactor) : page,
-        ),
-      }
-    })
-  }
+  // Layout changes are driven by drag handlers and resolveLayout;
+  // we intentionally skip the react-grid-layout onLayoutChange callback
+  // so that auto-positioned items keep their undefined stored position.
+  const handleLayoutChange = (_pageId: string, _nextLayout: Layout) => {}
 
   const suppressNextOpen = (itemId: string) => {
     suppressOpenItemId.current = itemId
@@ -1157,6 +1201,9 @@ export function DesktopRoute() {
       return
     }
 
+    // Give the dragged item an explicit position.
+    // Any explicitly-positioned item it overlaps becomes unpositioned
+    // and will be auto-placed at the page tail by resolveLayout.
     setLayoutState((prev) => {
       if (!prev) {
         return prev
@@ -1164,40 +1211,60 @@ export function DesktopRoute() {
 
       return {
         ...prev,
-        pages: prev.pages.map((page) =>
-          page.id === pageId ? normalizePageItems(page, formFactor, newItem.i) : page,
-        ),
+        pages: prev.pages.map((page) => {
+          if (page.id !== pageId) return page
+          return {
+            ...page,
+            items: page.items.map((item) => {
+              if (item.id === newItem.i) {
+                return { ...item, x: newItem.x, y: newItem.y }
+              }
+              // Displace overlapping explicitly-positioned items
+              if (item.x !== undefined && item.y !== undefined) {
+                const overlaps = !(
+                  newItem.x + newItem.w <= item.x ||
+                  item.x + item.w <= newItem.x ||
+                  newItem.y + newItem.h <= item.y ||
+                  item.y + item.h <= newItem.y
+                )
+                if (overlaps) {
+                  return { ...item, x: undefined, y: undefined }
+                }
+              }
+              return item
+            }),
+          }
+        }),
       }
     })
-
   }
 
   const moveItemBetweenPages = (itemId: string, direction: -1 | 1) => {
+    if (!resolvedLayout) return
+
+    // Use the resolved layout to determine which page the user sees the item on
+    const resolvedPageIndex = getPageIndex(resolvedLayout, itemId)
+    if (resolvedPageIndex < 0) return
+
     setLayoutState((prev) => {
       if (!prev) {
         return prev
       }
 
-      const pageIndex = getPageIndex(prev, itemId)
-      if (pageIndex < 0) {
-        return prev
-      }
+      // Find and remove from current page in layoutState
+      const currentPageIndex = getPageIndex(prev, itemId)
+      if (currentPageIndex < 0) return prev
 
-      const sourcePage = prev.pages[pageIndex]
-      const item = sourcePage.items.find((entry) => entry.id === itemId)
-      if (!item) {
-        return prev
-      }
+      const item = prev.pages[currentPageIndex].items.find((entry) => entry.id === itemId)
+      if (!item) return prev
 
-      const targetPageIndex = pageIndex + direction
+      const targetPageIndex = resolvedPageIndex + direction
+      if (targetPageIndex < 0) return prev
+
       const nextPages = prev.pages.map((page) => ({
         ...page,
         items: [...page.items],
       }))
-
-      if (targetPageIndex < 0) {
-        return prev
-      }
 
       if (targetPageIndex >= nextPages.length) {
         nextPages.push({
@@ -1206,12 +1273,11 @@ export function DesktopRoute() {
         })
       }
 
-      const sourceItems = nextPages[pageIndex].items.filter((entry) => entry.id !== itemId)
-      nextPages[pageIndex].items = sourceItems
-
-      const targetPage = nextPages[targetPageIndex]
-      const slot = findNextSlot(targetPage, item, formFactor)
-      targetPage.items = [...targetPage.items, { ...item, x: slot.x, y: slot.y }]
+      nextPages[currentPageIndex].items = nextPages[currentPageIndex].items.filter(
+        (entry) => entry.id !== itemId,
+      )
+      // Add to target page with undefined position (auto-placed at tail)
+      nextPages[targetPageIndex].items.push({ ...item, x: undefined, y: undefined })
 
       return {
         ...prev,
@@ -1446,7 +1512,7 @@ export function DesktopRoute() {
     () => data?.wallpaper ?? { mode: 'infinite' as const },
     [data?.wallpaper],
   )
-  const backgroundPageCount = layoutState?.pages.length ?? data?.layout.pages.length ?? 1
+  const backgroundPageCount = resolvedLayout?.pages.length ?? data?.layout.pages.length ?? 1
 
   useEffect(() => {
     setBackground({
@@ -1494,7 +1560,7 @@ export function DesktopRoute() {
           ref={workspaceRef}
           className="relative h-dvh min-h-dvh"
         >
-          {!isLoading && !error && layoutState ? (
+          {!isLoading && !error && resolvedLayout ? (
             <MobileNavProvider>
               <SystemSidebar
                 connectionState={connectionState}
@@ -1528,7 +1594,9 @@ export function DesktopRoute() {
                 trayState={trayState}
               />
               <div
+                ref={gridContainerRef}
                 className="relative overflow-hidden"
+                data-density={density}
                 style={{
                   minWidth: isMobile ? undefined : desktopMinCanvasSize.width,
                   minHeight: isMobile ? undefined : desktopMinCanvasSize.height,
@@ -1538,8 +1606,8 @@ export function DesktopRoute() {
                   paddingRight: resolvedDeadZone.right + safeArea.right,
                 }}
               >
-                {layoutState.pages.length === 0 ||
-                layoutState.pages.every((page) => page.items.length === 0) ? (
+                {resolvedLayout.pages.length === 0 ||
+                resolvedLayout.pages.every((page) => page.items.length === 0) ? (
                   <EmptyState onRestore={restoreDefaults} />
                 ) : (
                   <Swiper
@@ -1550,21 +1618,21 @@ export function DesktopRoute() {
                     style={{ height: workspaceInnerHeight }}
                     onSwiper={(swiper) =>
                       setViewportProgress(
-                        normalizeViewportProgress(swiper.progress, layoutState.pages.length),
+                        normalizeViewportProgress(swiper.progress, resolvedLayout.pages.length),
                       )
                     }
                     onProgress={(swiper) =>
                       setViewportProgress(
-                        normalizeViewportProgress(swiper.progress, layoutState.pages.length),
+                        normalizeViewportProgress(swiper.progress, resolvedLayout.pages.length),
                       )
                     }
                     onSlideChange={(swiper) =>
                       setViewportProgress(
-                        normalizeViewportProgress(swiper.progress, layoutState.pages.length),
+                        normalizeViewportProgress(swiper.progress, resolvedLayout.pages.length),
                       )
                     }
                   >
-                    {layoutState.pages.map((page) => (
+                    {resolvedLayout.pages.map((page) => (
                       <SwiperSlide key={page.id} className="h-full">
                         <div className="h-full px-4 pb-16 pt-6 sm:px-6">
                           <GridLayoutBase
@@ -1572,7 +1640,7 @@ export function DesktopRoute() {
                             gridConfig={{
                               cols: currentSpec.cols,
                               rowHeight: currentSpec.rowHeight,
-                              margin: isMobile ? [12, 12] : [16, 16],
+                              margin: [GRID_GAP, GRID_GAP],
                               containerPadding: [0, 0],
                               maxRows: currentSpec.rows,
                             }}
@@ -1639,7 +1707,7 @@ export function DesktopRoute() {
                 <DesktopWindowLayer
                   activityLog={activityLog}
                   deadZone={resolvedDeadZone}
-                  layoutState={layoutState}
+                  layoutState={resolvedLayout}
                   locale={locale}
                   onClose={handleCloseWindow}
                   onGeometryChange={updateWindowGeometry}
@@ -1663,7 +1731,7 @@ export function DesktopRoute() {
                   app={topMobileWindow.app}
                   deadZone={resolvedDeadZone}
                   safeAreaBottom={safeArea.bottom}
-                  layoutState={layoutState}
+                  layoutState={resolvedLayout}
                   locale={locale}
                   onSaveSettings={applySettings}
                   runtimeContainer={runtimeContainer}
@@ -1692,8 +1760,8 @@ export function DesktopRoute() {
       >
         <MenuItem
           onClick={() => {
-            const pageIndex = contextMenu && layoutState ? getPageIndex(layoutState, contextMenu.itemId) : -1
-            const item = pageIndex >= 0 ? layoutState?.pages[pageIndex].items.find((entry) => entry.id === contextMenu?.itemId) : null
+            const pageIndex = contextMenu && resolvedLayout ? getPageIndex(resolvedLayout, contextMenu.itemId) : -1
+            const item = pageIndex >= 0 ? resolvedLayout?.pages[pageIndex].items.find((entry) => entry.id === contextMenu?.itemId) : null
             if (item?.type === 'app') {
               handleOpenApp(item.appId)
             }
@@ -1703,13 +1771,13 @@ export function DesktopRoute() {
           {t('common.open')}
         </MenuItem>
         <MenuItem
-          disabled={!contextMenu || !layoutState || getPageIndex(layoutState, contextMenu.itemId) <= 0}
+          disabled={!contextMenu || !resolvedLayout || getPageIndex(resolvedLayout, contextMenu.itemId) <= 0}
           onClick={() => contextMenu && moveItemBetweenPages(contextMenu.itemId, -1)}
         >
           {t('common.movePrev')}
         </MenuItem>
         <MenuItem
-          disabled={!contextMenu || !layoutState}
+          disabled={!contextMenu || !resolvedLayout}
           onClick={() => contextMenu && moveItemBetweenPages(contextMenu.itemId, 1)}
         >
           {t('common.moveNext')}
@@ -1809,7 +1877,6 @@ function DesktopTile({
   onSaveNote: (itemId: string, content: string) => void
 }) {
   const { t } = useI18n()
-  const isCompactAppTile = !isDesktop && item.type === 'app'
   const touchStartRef = useRef<{ x: number; y: number; pointerId: number } | null>(null)
   const releaseAppPointerRef = useRef<(() => void) | null>(null)
 
@@ -1916,27 +1983,29 @@ function DesktopTile({
           className={clsx(
             'flex h-full w-full flex-col items-center rounded-[28px] bg-transparent text-center transition-[background-color,box-shadow] duration-200 ease-[var(--cp-ease-emphasis)] focus-visible:bg-[color:color-mix(in_srgb,var(--cp-accent-soft)_10%,var(--cp-surface))]',
             isDesktop ? 'cursor-grab active:cursor-grabbing' : '',
-            isCompactAppTile ? 'justify-center gap-1.5 px-1 py-2' : 'justify-center gap-2 px-2',
           )}
+          style={{ paddingTop: 'var(--icon-padding-top)' }}
         >
             <span
-              className={clsx(
-                'relative flex items-center justify-center overflow-hidden shadow-[0_8px_20px_color-mix(in_srgb,var(--cp-shadow)_10%,transparent)]',
-                isCompactAppTile
-                  ? 'h-11 w-11 rounded-[15px]'
-                  : 'h-14 w-14 rounded-[20px] sm:h-16 sm:w-16',
-              )}
-              style={appIconSurfaceStyle(app.accent)}
+              className="relative flex shrink-0 items-center justify-center overflow-hidden rounded-[20px] shadow-[0_8px_20px_color-mix(in_srgb,var(--cp-shadow)_10%,transparent)]"
+              style={{
+                width: 'var(--icon-size)',
+                height: 'var(--icon-size)',
+                ...appIconSurfaceStyle(app.accent),
+              }}
             >
               <AppIcon iconKey={app.iconKey} className="text-white" />
             </span>
           <span
-            className={clsx(
-              'max-w-full font-display font-semibold text-[color:var(--cp-text)]',
-              isCompactAppTile
-                ? 'max-w-full px-0.5 text-[11px] leading-[1.15] whitespace-normal break-words'
-                : 'text-sm leading-tight sm:text-[15px]',
-            )}
+            className="max-w-full overflow-hidden px-0.5 font-display font-semibold text-[color:var(--cp-text)]"
+            style={{
+              paddingTop: 'var(--label-padding-top)',
+              fontSize: 'var(--font-size-label)',
+              lineHeight: 'var(--line-height-label)',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+            }}
           >
             {t(app.labelKey, app.id)}
           </span>

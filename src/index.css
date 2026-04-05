@@ -36,6 +36,18 @@
   --cp-window-shadow: 0 30px 90px color-mix(in srgb, var(--cp-shadow) 18%, transparent);
   --cp-ease-emphasis: cubic-bezier(0.19, 1, 0.22, 1);
   --cp-ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Grid Slot system — Medium density (default) */
+  --grid-columns: 4;
+  --grid-gap: 2px;
+  --slot-h: 108px;
+  --font-size-label: 14px;
+  --line-height-label: 20px;
+  --icon-size: 48px;
+  --icon-padding-top: 14px;
+  --label-padding-top: 6px;
+  --label-max-lines: 2;
+
   --sat: env(safe-area-inset-top, 0px);
   --sab: env(safe-area-inset-bottom, 0px);
   --sal: env(safe-area-inset-left, 0px);
@@ -87,6 +99,25 @@
   --cp-surface-2-opaque: color-mix(in srgb, oklch(0.18 0.018 280) 84%, black);
   --cp-border: color-mix(in srgb, oklch(0.45 0.02 282) 20%, transparent);
   --cp-border-opaque: oklch(0.35 0.018 282);
+}
+
+/* Grid Slot density variants */
+[data-density='small'] {
+  --slot-h: 92px;
+  --font-size-label: 12px;
+  --line-height-label: 16px;
+  --icon-size: 40px;
+  --icon-padding-top: 12px;
+  --label-padding-top: 4px;
+}
+
+[data-density='large'] {
+  --slot-h: 124px;
+  --font-size-label: 16px;
+  --line-height-label: 24px;
+  --icon-size: 56px;
+  --icon-padding-top: 10px;
+  --label-padding-top: 6px;
 }
 
 * {

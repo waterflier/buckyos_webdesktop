@@ -58,14 +58,17 @@ export function TierBadge({ tier }: { tier: AppDefinition['tier'] }) {
 export function AppIcon({
   iconKey,
   className,
+  style,
 }: {
   iconKey: string
   className?: string
+  style?: React.CSSProperties
 }) {
   const Icon = iconMap[iconKey as keyof typeof iconMap] ?? LayoutGrid
   return (
     <Icon
-      className={clsx('relative z-10 size-7 sm:size-8', className)}
+      className={clsx('relative z-10', className)}
+      style={{ width: 'calc(var(--icon-size) * 0.5)', height: 'calc(var(--icon-size) * 0.5)', ...style }}
     />
   )
 }

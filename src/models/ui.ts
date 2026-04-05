@@ -35,8 +35,10 @@ export interface DeadZone {
 export interface LayoutItemBase {
   id: string
   type: DesktopItemType
-  x: number
-  y: number
+  /** Grid column. `undefined` = unpositioned (auto-placed at page tail). */
+  x?: number
+  /** Grid row. `undefined` = unpositioned (auto-placed at page tail). */
+  y?: number
   w: number
   h: number
 }
