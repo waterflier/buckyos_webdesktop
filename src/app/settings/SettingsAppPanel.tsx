@@ -1,7 +1,6 @@
-import { useState } from 'react'
 import type { AppContentLoaderProps } from '../types'
 import { SettingsStoreContext } from './hooks/use-settings-store'
-import { SettingsMockStore } from './mock/store'
+import { globalSettingsStore } from './mock/store'
 import { SettingsShell } from './components/layout/SettingsShell'
 import type { SettingsPage } from './components/layout/navigation'
 import { GeneralPage } from './pages/GeneralPage'
@@ -28,10 +27,8 @@ function PageRouter({ page, appProps }: { page: SettingsPage; appProps: AppConte
 }
 
 export function SettingsAppPanel(props: AppContentLoaderProps) {
-  const [store] = useState(() => new SettingsMockStore())
-
   return (
-    <SettingsStoreContext.Provider value={store}>
+    <SettingsStoreContext.Provider value={globalSettingsStore}>
       <SettingsShell>
         {(page) => <PageRouter page={page} appProps={props} />}
       </SettingsShell>

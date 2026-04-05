@@ -14,7 +14,19 @@
       "Bash(source ~/.zshrc)",
       "Bash(node node_modules/.bin/tsc --noEmit)",
       "Read(//Users/liuzhicong/.local/bin/**)",
-      "Read(//Users/liuzhicong/**)"
+      "Read(//Users/liuzhicong/**)",
+      "Bash(/opt/homebrew/bin/npx tsc:*)",
+      "Bash(PATH=\"$PATH:./node_modules/.bin\" tsc --noEmit --pretty)",
+      "Bash(ls ~/.nvm/versions/node/*/bin/node)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(ls /Users/liuzhicong/.nvm/versions/node/*/bin/npm)",
+      "Bash(/opt/homebrew/bin/npm --version)",
+      "Bash(export PATH=\"/opt/homebrew/bin:$PATH\")",
+      "Bash(npm --version)",
+      "Bash(pnpm run:*)",
+      "Bash(export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\")",
+      "Bash(npm run:*)",
+      "Bash(echo \"PATH: $PATH\")"
     ]
   }
 }

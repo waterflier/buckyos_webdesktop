@@ -12,6 +12,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react'
@@ -24,6 +25,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Pagination } from 'swiper/modules'
 import { Swiper, SwiperSlide } from 'swiper/react'
 import useSWR from 'swr'
+import { globalSettingsStore } from '../app/settings/mock/store'
 import {
   findDesktopAppById,
   resolveDesktopApps,
@@ -225,19 +227,49 @@ const densityRowHeight: Record<GridDensity, number> = {
 
 const GRID_GAP = 2
 
-/** Compute responsive column count from container width (px). */
+/**
+ * Maximum width (px) a single grid cell may occupy on desktop.
+ * When the container is wide enough that cells would exceed this,
+ * more columns are added to keep cells compact.
+ */
+const MAX_CELL_WIDTH = 110
+
+/** Minimum columns on desktop so the grid never looks too sparse. */
+const MIN_DESKTOP_COLS = 6
+
+/** Compute column count so that each cell stays within MAX_CELL_WIDTH. */
 function columnsForWidth(width: number): number {
-  if (width < 480) return 4
-  if (width < 768) return 6
-  if (width < 1024) return 8
-  if (width < 1440) return 10
-  return 12
+  const cols = Math.ceil((width + GRID_GAP) / (MAX_CELL_WIDTH + GRID_GAP))
+  return Math.max(MIN_DESKTOP_COLS, cols)
 }
 
-/** Compute how many rows fit in the available height for the given density. */
-function rowsForHeight(height: number, density: GridDensity): number {
-  const slotH = densityRowHeight[density]
+/**
+ * Minimum row height on desktop — more compact than the density value
+ * so that more rows fit and the grid fully utilises vertical space.
+ * icon-padding-top(10) + icon(48) + label-padding(4) + 1 line(16) = 78
+ */
+const DESKTOP_MIN_ROW_HEIGHT = 78
+
+/**
+ * Compute how many rows fit in the available height.
+ * On desktop uses a compact minimum; on mobile uses the density value.
+ */
+function rowsForHeight(
+  height: number,
+  density: GridDensity,
+  isMobile: boolean,
+): number {
+  const slotH = isMobile ? densityRowHeight[density] : DESKTOP_MIN_ROW_HEIGHT
   return Math.max(1, Math.floor((height + GRID_GAP) / (slotH + GRID_GAP)))
+}
+
+/**
+ * Given the number of rows that fit, compute the actual row height
+ * so that the grid fills the entire container height evenly.
+ */
+function stretchedRowHeight(height: number, rows: number): number {
+  if (rows <= 0) return densityRowHeight.medium
+  return (height - (rows - 1) * GRID_GAP) / rows
 }
 
 function useGridSpec(
@@ -268,8 +300,10 @@ function useGridSpec(
     return () => ro.disconnect()
   }, [containerRef, isMobile])
 
-  const rowHeight = densityRowHeight[density]
-  const rows = rowsForHeight(containerHeight, density)
+  const rows = rowsForHeight(containerHeight, density, isMobile)
+  const rowHeight = isMobile
+    ? densityRowHeight[density]
+    : stretchedRowHeight(containerHeight, rows)
 
   return { cols, rows, rowHeight }
 }
@@ -472,9 +506,19 @@ function fits(
 }
 
 /**
+ * Scan order for placing items in the grid.
+ * - 'row-major': left→right, then top→bottom (mobile)
+ * - 'col-major': top→bottom, then left→right (desktop)
+ */
+type ScanOrder = 'row-major' | 'col-major'
+
+/**
  * Find a slot at the tail of the page (after the last positioned content).
  * Unlike `findNextSlot` which scans from (0,0) and fills gaps,
  * this only places items after the last content, preserving manual layout.
+ *
+ * @param scanOrder 'col-major' scans top→bottom per column (desktop),
+ *                  'row-major' scans left→right per row (mobile).
  */
 function findTailSlot(
   page: DesktopPageState,
@@ -482,7 +526,13 @@ function findTailSlot(
   h: number,
   cols: number,
   rows: number,
+  scanOrder: ScanOrder = 'row-major',
 ): { x: number; y: number } | null {
+  if (scanOrder === 'col-major') {
+    return findTailSlotColMajor(page, w, h, cols, rows)
+  }
+
+  // --- row-major (mobile) ---
   let maxLinearEnd = 0
   for (const item of page.items) {
     if (item.x === undefined || item.y === undefined) continue
@@ -498,6 +548,42 @@ function findTailSlot(
   for (let y = startRow; y + h <= rows; y++) {
     const sx = y === startRow ? startCol : 0
     for (let x = sx; x + w <= cols; x++) {
+      if (fits(page, x, y, w, h, cols, rows)) {
+        return { x, y }
+      }
+    }
+  }
+
+  return null
+}
+
+/**
+ * Column-major tail placement: scan top→bottom within each column,
+ * then move to the next column. Position 0 = (0,0), 1 = (0,1), …
+ */
+function findTailSlotColMajor(
+  page: DesktopPageState,
+  w: number,
+  h: number,
+  cols: number,
+  rows: number,
+): { x: number; y: number } | null {
+  // Compute the column-major linear end of all positioned items
+  let maxLinearEnd = 0
+  for (const item of page.items) {
+    if (item.x === undefined || item.y === undefined) continue
+    for (let col = item.x; col < item.x + item.w; col++) {
+      const linearEnd = col * rows + (item.y + item.h)
+      maxLinearEnd = Math.max(maxLinearEnd, linearEnd)
+    }
+  }
+
+  const startCol = Math.floor(maxLinearEnd / rows)
+  const startRow = maxLinearEnd % rows
+
+  for (let x = startCol; x + w <= cols; x++) {
+    const sy = x === startCol ? startRow : 0
+    for (let y = sy; y + h <= rows; y++) {
       if (fits(page, x, y, w, h, cols, rows)) {
         return { x, y }
       }
@@ -536,11 +622,15 @@ function invalidatePositions(
 /**
  * Resolve all unpositioned items by placing them at the tail of each page.
  * Returns a fully-positioned layout suitable for rendering.
+ *
+ * @param scanOrder 'col-major' for desktop (top→bottom per column),
+ *                  'row-major' for mobile (left→right per row).
  */
 function resolveLayout(
   layout: LayoutState,
   cols: number,
   rows: number,
+  scanOrder: ScanOrder = 'row-major',
 ): LayoutState {
   const unpositioned: LayoutItem[] = []
   const resolvedPages: DesktopPageState[] = layout.pages.map((page) => ({
@@ -561,7 +651,7 @@ function resolveLayout(
   for (const item of unpositioned) {
     let placed = false
     for (const page of resolvedPages) {
-      const slot = findTailSlot(page, item.w, item.h, cols, rows)
+      const slot = findTailSlot(page, item.w, item.h, cols, rows, scanOrder)
       if (slot) {
         page.items.push({ ...item, x: slot.x, y: slot.y })
         placed = true
@@ -713,7 +803,8 @@ export function DesktopRoute() {
     height: window.innerHeight,
   }))
   const [workspaceSize, setWorkspaceSize] = useState({ width: 960, height: 720 })
-  const [density] = useState<GridDensity>('medium')
+  const settingsSnap = useSyncExternalStore(globalSettingsStore.subscribe, globalSettingsStore.getSnapshot)
+  const density = (settingsSnap.session.appearance.fontSize ?? 'medium') as GridDensity
   const gridContainerRef = useRef<HTMLDivElement | null>(null)
 
   const { data, error, isLoading, mutate } = useSWR(
@@ -811,8 +902,9 @@ export function DesktopRoute() {
   // Compute a fully-positioned layout for rendering (fills in auto-positions)
   const resolvedLayout = useMemo(() => {
     if (!layoutState) return null
-    return resolveLayout(layoutState, currentSpec.cols, currentSpec.rows)
-  }, [layoutState, currentSpec.cols, currentSpec.rows])
+    const scanOrder: ScanOrder = isMobile ? 'row-major' : 'col-major'
+    return resolveLayout(layoutState, currentSpec.cols, currentSpec.rows, scanOrder)
+  }, [layoutState, currentSpec.cols, currentSpec.rows, isMobile])
 
   useEffect(() => {
     if (!workspaceRef.current) {

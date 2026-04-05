@@ -109,3 +109,6 @@ export class SettingsMockStore {
     }, null, 2)
   }
 }
+
+/** Global singleton – shared by SettingsAppPanel and any other consumer. */
+export const globalSettingsStore = new SettingsMockStore()
