@@ -63,12 +63,11 @@ export function InfoPanel({
     <div
       className="desktop-scrollbar flex h-full flex-col overflow-y-auto"
       style={{
-        background:
-          'linear-gradient(180deg, color-mix(in srgb, var(--cp-surface) 96%, transparent), color-mix(in srgb, var(--cp-surface-2) 94%, transparent))',
+        background: 'var(--cp-bg)',
       }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid var(--cp-border)' }}>
+      <div className="flex items-center justify-between px-4 py-3">
         <span className="text-sm font-semibold" style={{ color: 'var(--cp-text)' }}>
           {t('homestation.infoPanel', 'Info')}
         </span>
@@ -83,7 +82,7 @@ export function InfoPanel({
       </div>
 
       {/* Active filters */}
-      <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--cp-border)' }}>
+      <div className="px-4 py-3">
         <div className="mb-2 flex items-center gap-2">
           <SlidersHorizontal size={14} style={{ color: 'var(--cp-muted)' }} />
           <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--cp-muted)' }}>
@@ -124,7 +123,7 @@ export function InfoPanel({
       </div>
 
       {/* Trending topics */}
-      <div className="px-4 py-3" style={{ borderBottom: '1px solid var(--cp-border)' }}>
+      <div className="px-4 py-3">
         <div className="mb-2 flex items-center gap-2">
           <TrendingUp size={14} style={{ color: 'var(--cp-muted)' }} />
           <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--cp-muted)' }}>

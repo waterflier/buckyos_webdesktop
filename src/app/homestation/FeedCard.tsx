@@ -184,7 +184,7 @@ export function FeedCard({
   return (
     <article
       className="border-b px-4 py-3 transition-colors hover:bg-[color:color-mix(in_srgb,var(--cp-text)_3%,transparent)]"
-      style={{ borderColor: 'var(--cp-border)' }}
+      style={{ borderColor: 'color-mix(in srgb, var(--cp-border) 50%, transparent)' }}
     >
       {/* Author row */}
       <div className="flex items-center gap-2">
