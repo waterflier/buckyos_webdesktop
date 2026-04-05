@@ -3,6 +3,7 @@ import { CodeAssistantAppPanel } from './codeassistant/CodeAssistantAppPanel'
 import { DemosAppPanel } from './demos/DemosAppPanel'
 import { DiagnosticsAppPanel } from './diagnostics/DiagnosticsAppPanel'
 import { FilesAppPanel } from './files/FilesAppPanel'
+import { HomeStationAppPanel } from './homestation/HomeStationAppPanel'
 import { MarketAppPanel } from './market/MarketAppPanel'
 import { MessageHubAppPanel } from './messagehub/MessageHubAppPanel'
 import { SettingsAppPanel } from './settings/SettingsAppPanel'
@@ -25,6 +26,7 @@ const appLoaders = {
   demos: DemosAppPanel,
   codeassistant: CodeAssistantAppPanel,
   messagehub: MessageHubAppPanel,
+  homestation: HomeStationAppPanel,
 } as const
 
 export function resolveDesktopApps(

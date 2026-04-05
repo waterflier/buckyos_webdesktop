@@ -5,6 +5,7 @@ import {
   BrainCircuit,
   Clock3,
   FolderOpen,
+  Home,
   LayoutGrid,
   MessageSquare,
   Settings,
@@ -27,6 +28,7 @@ const iconMap = {
   docs: BookOpen,
   codeassistant: Bot,
   messagehub: MessageSquare,
+  homestation: Home,
   clock: Clock3,
   notepad: StickyNote,
 }
