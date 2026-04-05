@@ -1,6 +1,7 @@
 /* ── App Service Detail Page ── */
 
 import { useState } from 'react'
+import { useMediaQuery } from '@mui/material'
 import {
   ArrowLeft,
   Play,
@@ -61,6 +62,7 @@ interface DetailPageProps {
 export function DetailPage({ serviceId, onNavigate }: DetailPageProps) {
   const store = useAppServiceStore()
   const { t } = useI18n()
+  const isMobile = useMediaQuery('(max-width: 767px)')
   const [, setTick] = useState(0)
   const [specOpen, setSpecOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -95,16 +97,18 @@ export function DetailPage({ serviceId, onNavigate }: DetailPageProps) {
 
   return (
     <div className="space-y-5">
-      {/* Back button */}
-      <button
-        type="button"
-        onClick={handleBack}
-        className="flex items-center gap-1.5 text-sm font-medium transition-colors"
-        style={{ color: 'var(--cp-muted)' }}
-      >
-        <ArrowLeft size={16} />
-        {t('appService.detail.back', 'Back')}
-      </button>
+      {/* Back button – hidden on mobile where title bar provides back */}
+      {!isMobile && (
+        <button
+          type="button"
+          onClick={handleBack}
+          className="flex items-center gap-1.5 text-sm font-medium transition-colors"
+          style={{ color: 'var(--cp-muted)' }}
+        >
+          <ArrowLeft size={16} />
+          {t('appService.detail.back', 'Back')}
+        </button>
+      )}
 
       {/* Header */}
       <div

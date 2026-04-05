@@ -1,6 +1,7 @@
 /* ── App Service Install Wizard ── */
 
 import { useState, useEffect } from 'react'
+import { useMediaQuery } from '@mui/material'
 import {
   ArrowLeft,
   Globe,
@@ -18,6 +19,24 @@ import { useAppServiceStore } from '../hooks/use-app-service-store'
 import { AppIcon } from '../../../components/DesktopVisuals'
 import type { InstallSource, InstallAppInfo } from '../mock/types'
 import type { AppServiceNav } from '../components/layout/navigation'
+
+/* ── Back button – hidden on mobile where title bar provides back ── */
+
+function BackButton({ onClick, label }: { onClick: () => void; label: string }) {
+  const isMobile = useMediaQuery('(max-width: 767px)')
+  if (isMobile) return null
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-1.5 text-sm font-medium"
+      style={{ color: 'var(--cp-muted)' }}
+    >
+      <ArrowLeft size={16} />
+      {label}
+    </button>
+  )
+}
 
 /* ── Step 1: Choose source ── */
 
@@ -40,15 +59,7 @@ function StepSource({
 
   return (
     <div className="space-y-5">
-      <button
-        type="button"
-        onClick={onBack}
-        className="flex items-center gap-1.5 text-sm font-medium"
-        style={{ color: 'var(--cp-muted)' }}
-      >
-        <ArrowLeft size={16} />
-        {t('appService.install.back', 'Back')}
-      </button>
+      <BackButton onClick={onBack} label={t('appService.install.back', 'Back')} />
 
       <div>
         <h1 className="font-display text-xl font-semibold" style={{ color: 'var(--cp-text)' }}>
@@ -170,15 +181,7 @@ function StepPermissions({
 
   return (
     <div className="space-y-5">
-      <button
-        type="button"
-        onClick={onBack}
-        className="flex items-center gap-1.5 text-sm font-medium"
-        style={{ color: 'var(--cp-muted)' }}
-      >
-        <ArrowLeft size={16} />
-        {t('appService.install.back', 'Back')}
-      </button>
+      <BackButton onClick={onBack} label={t('appService.install.back', 'Back')} />
 
       <div>
         <h1 className="font-display text-xl font-semibold" style={{ color: 'var(--cp-text)' }}>
@@ -287,15 +290,7 @@ function StepAdminConfirm({
 
   return (
     <div className="space-y-5">
-      <button
-        type="button"
-        onClick={onBack}
-        className="flex items-center gap-1.5 text-sm font-medium"
-        style={{ color: 'var(--cp-muted)' }}
-      >
-        <ArrowLeft size={16} />
-        {t('appService.install.back', 'Back')}
-      </button>
+      <BackButton onClick={onBack} label={t('appService.install.back', 'Back')} />
 
       <div>
         <h1 className="font-display text-xl font-semibold" style={{ color: 'var(--cp-text)' }}>

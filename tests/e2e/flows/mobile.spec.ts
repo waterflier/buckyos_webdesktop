@@ -192,3 +192,59 @@ test('mobile status tray tips stays within viewport and dismisses on blur', asyn
   })
   await expect(tipsPanel).toHaveCount(0)
 })
+
+test('mobile App Service opens without redundant back button on detail page', async ({
+  page,
+}) => {
+  const consoleErrors: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'error') {
+      consoleErrors.push(message.text())
+    }
+  })
+
+  await page.goto('/?scenario=normal')
+
+  // Open App Service
+  const appServiceButton = page.getByRole('button', { name: 'App Service' })
+  await expect(appServiceButton).toBeVisible()
+
+  const box = await appServiceButton.boundingBox()
+  expect(box).not.toBeNull()
+
+  const startX = (box?.x ?? 0) + (box?.width ?? 0) / 2
+  const startY = (box?.y ?? 0) + (box?.height ?? 0) / 2
+
+  await appServiceButton.dispatchEvent('pointerdown', {
+    bubbles: true,
+    clientX: startX,
+    clientY: startY,
+    pointerId: 5,
+    pointerType: 'touch',
+  })
+  await page.locator('body').dispatchEvent('pointerup', {
+    bubbles: true,
+    clientX: startX + 6,
+    clientY: startY + 5,
+    pointerId: 5,
+    pointerType: 'touch',
+  })
+
+  // Home page should be visible with app cards
+  await expect(page.getByRole('heading', { name: 'App Service' })).toBeVisible()
+  await expect(page.getByText('Nostr Relay')).toBeVisible()
+
+  // Click on Gitea (error state) to open detail page
+  const giteaCard = page.getByRole('button', { name: /Gitea/ }).first()
+  await giteaCard.click()
+
+  // Detail page should show Gitea info
+  await expect(page.getByText('Self-hosted Git service')).toBeVisible()
+
+  // The in-page "← Back" text button should NOT be present on mobile
+  // (the title bar already provides back navigation via its own back arrow)
+  // The in-page back button has text content "Back" with an ArrowLeft icon
+  await expect(page.locator('button:has(svg)', { hasText: 'Back' })).toHaveCount(0)
+
+  expect(consoleErrors).toEqual([])
+})
