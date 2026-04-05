@@ -3,12 +3,10 @@ import { useMediaQuery } from '@mui/material'
 import {
   ChevronLeft,
   ChevronRight,
-  Home,
   Hash,
   PenSquare,
   Rss,
   Search,
-  User,
   X,
 } from 'lucide-react'
 import { useI18n } from '../../i18n/provider'
@@ -34,7 +32,6 @@ import {
   INFO_PANEL_DEFAULT_WIDTH,
   INFO_PANEL_MAX_WIDTH,
   INFO_PANEL_MIN_WIDTH,
-  MOBILE_BOTTOM_NAV_HEIGHT,
   PANEL_SPLITTER_WIDTH,
   SIDEBAR_COLLAPSED_WIDTH,
   SIDEBAR_DEFAULT_WIDTH,
@@ -44,7 +41,6 @@ import {
 import type {
   FeedFilter,
   FeedObject,
-  MobileBottomTab,
   MobileView,
   ReadingMode,
   ViewPerspective,
@@ -68,7 +64,6 @@ export function HomeStationView() {
 
   /* ── Mobile State ── */
   const [mobileView, setMobileView] = useState<MobileView>('feed')
-  const [mobileBottomTab, setMobileBottomTab] = useState<MobileBottomTab>('home')
 
   /* ── Desktop Panel State ���─ */
   const [showSidebar, setShowSidebar] = useState(true)
@@ -197,7 +192,6 @@ export function HomeStationView() {
     setFeedObjects((prev) => [newFeed, ...prev])
     if (!isDesktop) {
       setMobileView('feed')
-      setMobileBottomTab('home')
     }
   }, [isDesktop])
 
@@ -208,18 +202,6 @@ export function HomeStationView() {
     }
     setReadingMode(mode)
   }, [isDesktop])
-
-  const handleBottomTabChange = useCallback((tab: MobileBottomTab) => {
-    setMobileBottomTab(tab)
-    if (tab === 'home') setMobileView('feed')
-    else if (tab === 'topics') setMobileView('topics')
-    else if (tab === 'publish') setMobileView('publish')
-    else if (tab === 'sources') setMobileView('sources')
-    else if (tab === 'me') {
-      setPerspective('visitor')
-      setMobileView('profile')
-    }
-  }, [])
 
   /* ── Sidebar Splitter ── */
   const handleSidebarSplitterPointerDown = useCallback((e: React.PointerEvent<HTMLButtonElement>) => {
@@ -318,100 +300,174 @@ export function HomeStationView() {
 
         {/* Profile view */}
         {mobileView === 'profile' ? (
-          <div className="flex-1 overflow-y-auto" style={{ paddingBottom: MOBILE_BOTTOM_NAV_HEIGHT }}>
-            <PublicProfileView
-              profile={mockUserProfile}
-              feeds={feedObjects.filter((f) => f.author.id === mockUserProfile.id)}
-              t={t}
-              onSelectFeed={handleSelectFeed}
-              onToggleLike={handleToggleLike}
-              onToggleBookmark={handleToggleBookmark}
-              onRepost={handleRepost}
-            />
-          </div>
-        ) : null}
-
-        {/* Topics view */}
-        {mobileView === 'topics' ? (
-          <div className="flex-1 overflow-y-auto" style={{ paddingBottom: MOBILE_BOTTOM_NAV_HEIGHT }}>
-            <MobileTopicsView
-              topics={mockTopics}
-              activeTopicId={activeTopicId}
-              t={t}
-              onSelectTopic={(id) => {
-                setActiveTopicId(id)
-                setMobileView('feed')
-                setMobileBottomTab('home')
-              }}
-            />
+          <div className="flex h-full flex-col">
+            {/* Back header */}
+            <div className="flex items-center gap-2 px-2 py-2" style={{ borderBottom: '1px solid var(--cp-border)' }}>
+              <button
+                type="button"
+                onClick={() => { setMobileView('feed'); setPerspective('owner') }}
+                className="flex h-9 w-9 items-center justify-center rounded-xl"
+                style={{ color: 'var(--cp-text)' }}
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <span className="text-sm font-semibold" style={{ color: 'var(--cp-text)' }}>
+                {t('homestation.profile', 'Profile')}
+              </span>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <PublicProfileView
+                profile={mockUserProfile}
+                feeds={feedObjects.filter((f) => f.author.id === mockUserProfile.id)}
+                t={t}
+                onSelectFeed={handleSelectFeed}
+                onToggleLike={handleToggleLike}
+                onToggleBookmark={handleToggleBookmark}
+                onRepost={handleRepost}
+              />
+              {/* Sources entry */}
+              <div className="px-4 pb-6">
+                <button
+                  type="button"
+                  onClick={() => setMobileView('sources')}
+                  className="flex w-full items-center gap-3 rounded-xl px-4 py-3"
+                  style={{ background: 'color-mix(in srgb, var(--cp-text) 5%, transparent)' }}
+                >
+                  <Rss size={18} style={{ color: 'var(--cp-accent)' }} />
+                  <span className="flex-1 text-left text-sm font-medium" style={{ color: 'var(--cp-text)' }}>
+                    {t('homestation.manageSources', 'Manage Sources')}
+                  </span>
+                  <ChevronRight size={16} style={{ color: 'var(--cp-muted)' }} />
+                </button>
+              </div>
+            </div>
           </div>
         ) : null}
 
         {/* Publish view */}
         {mobileView === 'publish' ? (
-          <div className="flex-1 overflow-y-auto" style={{ paddingBottom: MOBILE_BOTTOM_NAV_HEIGHT }}>
-            <QuickPublishComposer t={t} onPublish={handlePublish} />
+          <div className="flex h-full flex-col">
+            <div className="flex items-center gap-2 px-2 py-2" style={{ borderBottom: '1px solid var(--cp-border)' }}>
+              <button type="button" onClick={() => setMobileView('feed')} className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ color: 'var(--cp-text)' }}>
+                <ChevronLeft size={20} />
+              </button>
+              <span className="text-sm font-semibold" style={{ color: 'var(--cp-text)' }}>{t('homestation.tabPublish', 'Publish')}</span>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <QuickPublishComposer t={t} onPublish={handlePublish} />
+            </div>
           </div>
         ) : null}
 
         {/* Sources view */}
         {mobileView === 'sources' ? (
-          <div className="flex-1 overflow-y-auto" style={{ paddingBottom: MOBILE_BOTTOM_NAV_HEIGHT }}>
-            <SourceManager sources={mockSources} t={t} />
+          <div className="flex h-full flex-col">
+            <div className="flex items-center gap-2 px-2 py-2" style={{ borderBottom: '1px solid var(--cp-border)' }}>
+              <button type="button" onClick={() => { setMobileView('profile'); setPerspective('visitor') }} className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ color: 'var(--cp-text)' }}>
+                <ChevronLeft size={20} />
+              </button>
+              <span className="text-sm font-semibold" style={{ color: 'var(--cp-text)' }}>{t('homestation.tabSources', 'Sources')}</span>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              <SourceManager sources={mockSources} t={t} />
+            </div>
           </div>
         ) : null}
 
         {/* Feed view (default) */}
         {mobileView === 'feed' ? (
           <>
-            {/* Top bar */}
-            <div className="flex items-center gap-2 px-4 py-2" style={{ borderBottom: '1px solid var(--cp-border)' }}>
-              <h1 className="flex-1 text-lg font-bold" style={{ color: 'var(--cp-text)' }}>
-                {t('homestation.title', 'HomeStation')}
-              </h1>
+            {/* Top bar: avatar + name + search */}
+            <div className="flex items-center gap-3 px-4 py-2" style={{ borderBottom: '1px solid var(--cp-border)' }}>
+              <button
+                type="button"
+                onClick={() => { setPerspective('visitor'); setMobileView('profile') }}
+                className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-sm font-semibold"
+                style={{
+                  background: 'color-mix(in srgb, var(--cp-accent) 15%, transparent)',
+                  color: 'var(--cp-accent)',
+                }}
+              >
+                {mockUserProfile.name.charAt(0)}
+              </button>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold" style={{ color: 'var(--cp-text)' }}>{mockUserProfile.name}</p>
+                <p className="truncate text-[11px]" style={{ color: 'var(--cp-muted)' }}>
+                  {mockUserProfile.bio ?? t('homestation.title', 'HomeStation')}
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowSearch((v) => !v)}
-                className="flex h-9 w-9 items-center justify-center rounded-xl"
+                className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl"
                 style={{ color: 'var(--cp-muted)', background: 'color-mix(in srgb, var(--cp-text) 7%, transparent)' }}
               >
                 <Search size={18} />
               </button>
             </div>
 
-            {/* Search bar (conditional) */}
+            {/* Search panel with Topics (conditional) */}
             {showSearch ? (
-              <div className="flex items-center gap-2 px-4 py-2" style={{ borderBottom: '1px solid var(--cp-border)' }}>
-                <Search size={16} style={{ color: 'var(--cp-muted)' }} />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={t('homestation.searchPlaceholder', 'Search feeds...')}
-                  className="flex-1 bg-transparent text-sm outline-none"
-                  style={{ color: 'var(--cp-text)' }}
-                  autoFocus
-                />
-                <button type="button" onClick={() => { setShowSearch(false); setSearchQuery('') }} style={{ color: 'var(--cp-muted)' }}>
-                  <X size={16} />
-                </button>
+              <div style={{ borderBottom: '1px solid var(--cp-border)' }}>
+                <div className="flex items-center gap-2 px-4 py-2">
+                  <Search size={16} style={{ color: 'var(--cp-muted)' }} />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder={t('homestation.searchPlaceholder', 'Search feeds...')}
+                    className="flex-1 bg-transparent text-sm outline-none"
+                    style={{ color: 'var(--cp-text)' }}
+                    autoFocus
+                  />
+                  <button type="button" onClick={() => { setShowSearch(false); setSearchQuery('') }} style={{ color: 'var(--cp-muted)' }}>
+                    <X size={16} />
+                  </button>
+                </div>
+                {/* Topics list */}
+                <div className="flex flex-wrap gap-2 px-4 pb-3 pt-1">
+                  <span className="text-[11px] font-medium" style={{ color: 'var(--cp-muted)', lineHeight: '28px' }}>
+                    {t('homestation.topics', 'Topics')}:
+                  </span>
+                  {mockTopics.map((topic) => (
+                    <button
+                      key={topic.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveTopicId(activeTopicId === topic.id ? null : topic.id)
+                        setActiveFilter('all')
+                        setShowSearch(false)
+                        setSearchQuery('')
+                      }}
+                      className="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors"
+                      style={{
+                        background: activeTopicId === topic.id
+                          ? 'var(--cp-accent)'
+                          : 'color-mix(in srgb, var(--cp-text) 8%, transparent)',
+                        color: activeTopicId === topic.id ? 'white' : 'var(--cp-text)',
+                      }}
+                    >
+                      <Hash size={12} />
+                      {topic.name}
+                    </button>
+                  ))}
+                </div>
               </div>
             ) : null}
 
-            {/* Filter bar */}
-            <FilterBar
-              activeFilter={activeFilter}
-              activeTopicId={activeTopicId}
-              readingMode={readingMode}
-              topics={mockTopics}
-              t={t}
-              onFilterChange={setActiveFilter}
-              onTopicSelect={setActiveTopicId}
-              onReadingModeChange={handleReadingModeChange}
-            />
-
-            {/* Feed list */}
-            <div className="flex-1 overflow-hidden" style={{ paddingBottom: MOBILE_BOTTOM_NAV_HEIGHT }}>
+            {/* Feed list with filter bar (scrolls together) */}
+            <div className="flex-1 overflow-y-auto">
+              <FilterBar
+                activeFilter={activeFilter}
+                activeTopicId={activeTopicId}
+                readingMode={readingMode}
+                topics={mockTopics}
+                t={t}
+                onFilterChange={setActiveFilter}
+                onTopicSelect={setActiveTopicId}
+                onReadingModeChange={handleReadingModeChange}
+                isMobile
+              />
               <FeedList
                 feeds={filteredFeeds}
                 readingMode={readingMode}
@@ -420,17 +476,18 @@ export function HomeStationView() {
                 onToggleLike={handleToggleLike}
                 onToggleBookmark={handleToggleBookmark}
                 onRepost={handleRepost}
+                scrollable={false}
               />
             </div>
 
             {/* FAB */}
             <button
               type="button"
-              onClick={() => { setMobileView('publish'); setMobileBottomTab('publish') }}
+              onClick={() => setMobileView('publish')}
               className="absolute z-20 flex h-14 w-14 items-center justify-center rounded-full shadow-lg"
               style={{
                 right: 16,
-                bottom: MOBILE_BOTTOM_NAV_HEIGHT + 16,
+                bottom: 16,
                 background: 'var(--cp-accent)',
                 color: 'white',
               }}
@@ -440,14 +497,6 @@ export function HomeStationView() {
           </>
         ) : null}
 
-        {/* Bottom navigation */}
-        {mobileView !== 'detail' && mobileView !== 'immersive' ? (
-          <MobileBottomNav
-            activeTab={mobileBottomTab}
-            t={t}
-            onTabChange={handleBottomTabChange}
-          />
-        ) : null}
       </div>
     )
   }
@@ -717,52 +766,6 @@ export function HomeStationView() {
   )
 }
 
-/* ── Mobile Bottom Navigation ── */
-
-const bottomTabs: { id: MobileBottomTab; icon: React.ReactNode; labelKey: string; fallback: string }[] = [
-  { id: 'home', icon: <Home size={20} />, labelKey: 'homestation.tabHome', fallback: 'Home' },
-  { id: 'topics', icon: <Hash size={20} />, labelKey: 'homestation.tabTopics', fallback: 'Topics' },
-  { id: 'publish', icon: <PenSquare size={20} />, labelKey: 'homestation.tabPublish', fallback: 'Publish' },
-  { id: 'sources', icon: <Rss size={20} />, labelKey: 'homestation.tabSources', fallback: 'Sources' },
-  { id: 'me', icon: <User size={20} />, labelKey: 'homestation.tabMe', fallback: 'Me' },
-]
-
-function MobileBottomNav({
-  activeTab,
-  t,
-  onTabChange,
-}: {
-  activeTab: MobileBottomTab
-  t: (key: string, fallback: string) => string
-  onTabChange: (tab: MobileBottomTab) => void
-}) {
-  return (
-    <nav
-      className="absolute inset-x-0 bottom-0 flex items-center justify-around"
-      style={{
-        height: MOBILE_BOTTOM_NAV_HEIGHT,
-        background: 'color-mix(in srgb, var(--cp-surface) 95%, transparent)',
-        backdropFilter: 'blur(16px)',
-        borderTop: '1px solid var(--cp-border)',
-      }}
-    >
-      {bottomTabs.map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          onClick={() => onTabChange(tab.id)}
-          className="flex flex-col items-center gap-0.5 px-3 py-1"
-          style={{
-            color: activeTab === tab.id ? 'var(--cp-accent)' : 'var(--cp-muted)',
-          }}
-        >
-          {tab.icon}
-          <span className="text-[10px] font-medium">{t(tab.labelKey, tab.fallback)}</span>
-        </button>
-      ))}
-    </nav>
-  )
-}
 
 /* ── Mobile Topics View ── */
 

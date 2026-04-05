@@ -10,6 +10,7 @@ interface FeedListProps {
   onToggleLike: (id: string) => void
   onToggleBookmark: (id: string) => void
   onRepost: (id: string) => void
+  scrollable?: boolean
 }
 
 export function FeedList({
@@ -20,6 +21,7 @@ export function FeedList({
   onToggleLike,
   onToggleBookmark,
   onRepost,
+  scrollable = true,
 }: FeedListProps) {
   if (feeds.length === 0) {
     return (
@@ -34,7 +36,7 @@ export function FeedList({
   }
 
   return (
-    <div className="desktop-scrollbar h-full overflow-y-auto">
+    <div className={scrollable ? 'desktop-scrollbar h-full overflow-y-auto' : ''}>
       {feeds.map((feed) => (
         <FeedCard
           key={feed.id}
