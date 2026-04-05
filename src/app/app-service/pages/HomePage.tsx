@@ -67,7 +67,16 @@ function statusLabel(status: AppServiceItem['status'], t: (k: string, f: string)
   }
 }
 
-/* ── App Card (for app layer) ── */
+/* ── App Card (App Store style, width controlled by grid parent) ── */
+
+function statusBadgeStyle(status: AppServiceItem['status']): React.CSSProperties {
+  const color = statusColor(status)
+  return {
+    background: `color-mix(in srgb, ${color} 12%, transparent)`,
+    color,
+    border: `1px solid color-mix(in srgb, ${color} 25%, transparent)`,
+  }
+}
 
 function AppCard({
   service,
@@ -80,50 +89,61 @@ function AppCard({
     <button
       type="button"
       onClick={onOpen}
-      className="w-full rounded-2xl p-4 text-left transition-colors hover:brightness-[1.02]"
+      className="w-full rounded-2xl text-left transition-all hover:shadow-lg hover:-translate-y-0.5"
       style={{
         background: 'var(--cp-surface)',
         border: '1px solid var(--cp-border)',
+        overflow: 'hidden',
       }}
     >
-      <div className="flex items-center gap-3">
-        <div
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-          style={{
-            background: 'color-mix(in srgb, var(--cp-accent) 10%, var(--cp-surface-2))',
-            color: 'var(--cp-text)',
-          }}
-        >
-          <AppIcon iconKey={service.iconKey} className="!size-5" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium truncate" style={{ color: 'var(--cp-text)' }}>
-              {service.name}
-            </span>
-            <span className="text-xs" style={{ color: 'var(--cp-muted)' }}>
-              v{service.version}
-            </span>
+      {/* Top section with icon + info */}
+      <div className="p-4 pb-3">
+        <div className="flex items-start gap-3.5">
+          {/* Large rounded icon */}
+          <div
+            className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[18px] shadow-sm"
+            style={{
+              background: 'color-mix(in srgb, var(--cp-accent) 10%, var(--cp-surface-2))',
+              color: 'var(--cp-text)',
+              border: '1px solid var(--cp-border)',
+            }}
+          >
+            <AppIcon iconKey={service.iconKey} className="!size-8" />
           </div>
-          <div className="text-xs mt-0.5 truncate" style={{ color: 'var(--cp-muted)' }}>
-            {service.description}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="flex items-center gap-1.5">
-            <span style={{ color: statusColor(service.status) }}>{statusIcon(service.status)}</span>
-            <span
-              className="text-xs font-medium"
-              style={{ color: statusColor(service.status) }}
+          {/* Name + description + version */}
+          <div className="flex-1 min-w-0 pt-0.5">
+            <div
+              className="text-[15px] font-semibold truncate leading-tight"
+              style={{ color: 'var(--cp-text)' }}
             >
+              {service.name}
+            </div>
+            <div
+              className="text-xs mt-1 line-clamp-2 leading-relaxed"
+              style={{ color: 'var(--cp-muted)' }}
+            >
+              {service.description}
+            </div>
+            <div className="text-[11px] mt-1.5" style={{ color: 'var(--cp-muted)' }}>
+              v{service.version}
+            </div>
+          </div>
+          {/* Status badge */}
+          <div
+            className="shrink-0 flex items-center gap-1.5 rounded-full px-2.5 py-1"
+            style={statusBadgeStyle(service.status)}
+          >
+            <span className="flex items-center">{statusIcon(service.status)}</span>
+            <span className="text-[11px] font-semibold whitespace-nowrap">
               {statusLabel(service.status, (k, f) => f)}
             </span>
           </div>
-          <ChevronRight size={14} style={{ color: 'var(--cp-muted)' }} />
         </div>
       </div>
+
+      {/* Install progress bar */}
       {service.status === 'installing' && service.installProgress != null && (
-        <div className="mt-3">
+        <div className="px-4 pb-3">
           <div
             className="h-1.5 w-full rounded-full overflow-hidden"
             style={{ background: 'var(--cp-border)' }}
@@ -136,11 +156,25 @@ function AppCard({
               }}
             />
           </div>
-          <div className="text-xs mt-1" style={{ color: 'var(--cp-muted)' }}>
+          <div className="text-[11px] mt-1 text-right" style={{ color: 'var(--cp-muted)' }}>
             {service.installProgress}%
           </div>
         </div>
       )}
+
+      {/* Bottom action hint */}
+      <div
+        className="flex items-center justify-between px-4 py-2.5"
+        style={{
+          borderTop: '1px solid var(--cp-border)',
+          background: 'color-mix(in srgb, var(--cp-surface-2) 50%, var(--cp-surface))',
+        }}
+      >
+        <span className="text-[11px] font-medium" style={{ color: 'var(--cp-muted)' }}>
+          {service.docker ? service.docker.imageName : 'Native Service'}
+        </span>
+        <ChevronRight size={14} style={{ color: 'var(--cp-muted)' }} />
+      </div>
     </button>
   )
 }
@@ -264,7 +298,10 @@ export function HomePage({ onNavigate }: HomePageProps) {
             title={t('appService.layer.apps', 'Running Apps')}
             count={appServices.length}
           />
-          <div className="space-y-2">
+          <div
+            className="grid gap-4"
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(375px, 100%), 1fr))' }}
+          >
             {appServices.map((svc) => (
               <AppCard key={svc.id} service={svc} onOpen={() => handleOpen(svc.id)} />
             ))}
