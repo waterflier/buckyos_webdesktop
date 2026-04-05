@@ -1,4 +1,5 @@
 import { AICenterAppPanel } from './ai-center/AICenterAppPanel'
+import { AppServiceAppPanel } from './app-service/AppServiceAppPanel'
 import { CodeAssistantAppPanel } from './codeassistant/CodeAssistantAppPanel'
 import { DemosAppPanel } from './demos/DemosAppPanel'
 import { DiagnosticsAppPanel } from './diagnostics/DiagnosticsAppPanel'
@@ -20,6 +21,7 @@ import type { AppContentLoaderProps, DesktopAppItem } from './types'
 
 const appLoaders = {
   'ai-center': AICenterAppPanel,
+  'app-service': AppServiceAppPanel,
   settings: SettingsAppPanel,
   files: FilesAppPanel,
   studio: StudioAppPanel,

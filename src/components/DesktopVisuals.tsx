@@ -2,6 +2,7 @@ import clsx from 'clsx'
 import {
   BookOpen,
   Bot,
+  Boxes,
   BrainCircuit,
   ClipboardList,
   Clock3,
@@ -21,6 +22,7 @@ import { panelToneClasses } from './DesktopVisualTokens'
 
 const iconMap = {
   'ai-center': BrainCircuit,
+  'app-service': Boxes,
   settings: Settings,
   files: FolderOpen,
   studio: Wrench,
