@@ -8,6 +8,7 @@ import { MarketAppPanel } from './market/MarketAppPanel'
 import { MessageHubAppPanel } from './messagehub/MessageHubAppPanel'
 import { SettingsAppPanel } from './settings/SettingsAppPanel'
 import { StudioAppPanel } from './studio/StudioAppPanel'
+import { UsersAgentsAppPanel } from './users-agents/UsersAgentsAppPanel'
 import { UnsupportedAppPanel } from './unsupported/UnsupportedAppPanel'
 import {
   supportsFormFactor,
@@ -27,6 +28,7 @@ const appLoaders = {
   codeassistant: CodeAssistantAppPanel,
   messagehub: MessageHubAppPanel,
   homestation: HomeStationAppPanel,
+  'users-agents': UsersAgentsAppPanel,
 } as const
 
 export function resolveDesktopApps(

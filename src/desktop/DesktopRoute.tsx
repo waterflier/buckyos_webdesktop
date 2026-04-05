@@ -364,7 +364,7 @@ function createSystemSidebarDataModel(
     })
     .filter((app): app is SystemSidebarDataModel['switchApps'][number] => Boolean(app))
 
-  const systemApps = ['settings', 'diagnostics']
+  const systemApps = ['settings', 'diagnostics', 'users-agents']
     .map((appId) => toSidebarApp(appMap.get(appId)))
     .filter((app): app is SystemSidebarAppItem => Boolean(app))
 

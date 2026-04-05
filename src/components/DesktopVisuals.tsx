@@ -12,6 +12,7 @@ import {
   SlidersHorizontal,
   StickyNote,
   Store,
+  Users,
   Wrench,
 } from 'lucide-react'
 import type { AppDefinition } from '../models/ui'
@@ -29,6 +30,7 @@ const iconMap = {
   codeassistant: Bot,
   messagehub: MessageSquare,
   homestation: Home,
+  'users-agents': Users,
   clock: Clock3,
   notepad: StickyNote,
 }
