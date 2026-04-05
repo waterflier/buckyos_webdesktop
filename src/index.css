@@ -48,17 +48,17 @@
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --cp-bg: oklch(0 0 0);
-  --cp-bg-strong: oklch(0.08 0.01 272);
-  --cp-surface: color-mix(in srgb, oklch(0.14 0.016 276) 88%, transparent);
-  --cp-surface-2: color-mix(in srgb, oklch(0.18 0.018 280) 84%, transparent);
-  --cp-surface-opaque: color-mix(in srgb, oklch(0.14 0.016 276) 88%, black);
-  --cp-surface-2-opaque: color-mix(in srgb, oklch(0.18 0.018 280) 84%, black);
+  --cp-bg: oklch(0.22 0.022 274);
+  --cp-bg-strong: oklch(0.18 0.02 272);
+  --cp-surface: color-mix(in srgb, oklch(0.275 0.028 276) 88%, transparent);
+  --cp-surface-2: color-mix(in srgb, oklch(0.31 0.03 280) 84%, transparent);
+  --cp-surface-opaque: color-mix(in srgb, oklch(0.275 0.028 276) 88%, black);
+  --cp-surface-2-opaque: color-mix(in srgb, oklch(0.31 0.03 280) 84%, black);
   --cp-surface-3: color-mix(in srgb, var(--cp-accent-soft) 14%, var(--cp-surface));
   --cp-text: oklch(0.95 0.012 296);
   --cp-muted: oklch(0.76 0.02 282);
-  --cp-border: color-mix(in srgb, oklch(0.45 0.02 282) 20%, transparent);
-  --cp-border-opaque: oklch(0.35 0.018 282);
+  --cp-border: color-mix(in srgb, oklch(0.58 0.024 282) 36%, transparent);
+  --cp-border-opaque: oklch(0.58 0.024 282);
   --cp-accent: oklch(0.78 0.12 260);
   --cp-accent-soft: oklch(0.7 0.08 301);
   --cp-ink-accent: oklch(0.58 0.05 300);
@@ -76,6 +76,17 @@
   --cp-focus-ring: color-mix(in srgb, var(--cp-accent) 56%, transparent);
   --cp-panel-shadow: 0 28px 70px color-mix(in srgb, var(--cp-shadow) 32%, transparent);
   --cp-window-shadow: 0 36px 110px color-mix(in srgb, var(--cp-shadow) 42%, transparent);
+}
+
+:root[data-theme='dark'] .homestation-root {
+  --cp-bg: oklch(0 0 0);
+  --cp-bg-strong: oklch(0.08 0.01 272);
+  --cp-surface: color-mix(in srgb, oklch(0.14 0.016 276) 88%, transparent);
+  --cp-surface-2: color-mix(in srgb, oklch(0.18 0.018 280) 84%, transparent);
+  --cp-surface-opaque: color-mix(in srgb, oklch(0.14 0.016 276) 88%, black);
+  --cp-surface-2-opaque: color-mix(in srgb, oklch(0.18 0.018 280) 84%, black);
+  --cp-border: color-mix(in srgb, oklch(0.45 0.02 282) 20%, transparent);
+  --cp-border-opaque: oklch(0.35 0.018 282);
 }
 
 * {
@@ -130,7 +141,7 @@ a {
 }
 
 .shell-panel {
-  border: none;
+  border: 1px solid var(--cp-border);
   border-radius: 28px;
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--cp-surface) 92%, transparent), color-mix(in srgb, var(--cp-surface-2) 92%, transparent));
@@ -138,7 +149,7 @@ a {
 }
 
 .shell-subtle-panel {
-  border: none;
+  border: 1px solid color-mix(in srgb, var(--cp-border) 84%, transparent);
   border-radius: 24px;
   background: color-mix(in srgb, var(--cp-surface-2) 92%, transparent);
 }
