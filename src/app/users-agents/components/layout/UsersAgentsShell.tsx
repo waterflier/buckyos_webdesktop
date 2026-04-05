@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react'
 import { useMediaQuery } from '@mui/material'
 import { Sidebar } from './Sidebar'
 import { CollectionList } from './CollectionList'
+import { MobileHomeScreen } from './MobileHomeScreen'
 import { EmptyPlaceholder } from '../detail/EmptyPlaceholder'
 import { SelfDetailPage } from '../detail/SelfDetailPage'
 import { AgentDetailPage } from '../detail/AgentDetailPage'
@@ -90,18 +91,16 @@ export function UsersAgentsShell() {
 
   // ── Mobile layout ──
   if (isMobile) {
-    // level 0: sidebar
+    // level 0: full-width mobile home with badge & server cards
     if (!selection && !showNewUser) {
       return (
-        <div className="flex flex-col h-full w-full" style={{ background: 'var(--cp-bg)' }}>
-          <Sidebar
-            selection={selection}
-            onSelect={handleSelect}
-            onAddUser={() => setShowNewUser(true)}
-            onRenameCollection={handleRenameCollection}
-            onDeleteCollection={handleDeleteCollection}
-          />
-        </div>
+        <MobileHomeScreen
+          selection={selection}
+          onSelect={handleSelect}
+          onAddUser={() => setShowNewUser(true)}
+          onRenameCollection={handleRenameCollection}
+          onDeleteCollection={handleDeleteCollection}
+        />
       )
     }
 
